@@ -3,13 +3,17 @@ import { Notify } from "notifycx";
 
 const notify = new Notify("e7ebacba-f607-41e0-a2d0-e3d904e6e1f8");
 
-export async function sendEmail(email: string, hashedtoken: string, forgotPass: boolean) {
-    const link = forgotPass
-        ? `http://localhost:3000/auth/forgotpassword/${hashedtoken}`
-        : `http://localhost:3000/auth/${hashedtoken}`;
+export async function sendEmail(
+  email: string,
+  hashedtoken: string,
+  forgotPass: boolean
+) {
+  const link = forgotPass
+    ? `${process.env.CLIENT_URL}/auth/forgotpassword/${hashedtoken}`
+    : `${process.env.CLIENT_URL}/auth/${hashedtoken}`;
 
-    const message = forgotPass
-        ? `
+  const message = forgotPass
+    ? `
    <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -121,7 +125,7 @@ export async function sendEmail(email: string, hashedtoken: string, forgotPass: 
 </body>
 </html>
    `
-        : `
+    : `
             <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -234,11 +238,11 @@ export async function sendEmail(email: string, hashedtoken: string, forgotPass: 
             
             `;
 
-    const response = await notify.sendEmail({
-        to: email,
-        subject: forgotPass ? "Password Reset" : "Verify your email",
-        name: "John Doe",
-        message
-    });
-    return response;
+  const response = await notify.sendEmail({
+    to: email,
+    subject: forgotPass ? "Password Reset" : "Verify your email",
+    name: "John Doe",
+    message,
+  });
+  return response;
 }

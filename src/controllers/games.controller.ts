@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 
 import GameService, { activeGames } from "../db/services/game.js"; // Adjusted import to match your project structure
 import { asyncHandler } from "../db/helper.js";
-import { UserModel } from "../db/index.js";
+import { GameModel, UserModel } from "../db/index.js";
 
 export const getGames = async (req: Request, res: Response) => {
   try {
@@ -56,7 +56,15 @@ export const getActiveGame = asyncHandler(
     const game = activeGames.find((g) => g.code === req.params.code);
 
     if (!game) {
-      res.status(404).end();
+      const archivedGame = await GameModel.findOne({
+        code: req.params.code,
+      });
+
+      if (archivedGame) {
+        res.status(200).json(game);
+      } else {
+        res.status(404).end();
+      }
     } else {
       res.status(200).json(game);
     }
