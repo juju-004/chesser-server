@@ -5,68 +5,56 @@ export const activeGames: Game[] = [];
 
 export const save = async (game: Game) => {
   try {
-    const white: User = {};
-    const black: User = {};
-
-    if (typeof game.white?.id === "string") {
-      white.name = game.white?.name;
-    } else {
-      white.id = game.white?.id;
-    }
-    if (typeof game.black?.id === "string") {
-      black.name = game.black?.name;
-    } else {
-      black.id = game.black?.id;
-    }
-
     // Create game document in MongoDB
     const newGame = new GameModel({
       winner: game.winner || null,
       endReason: game.endReason || null,
       pgn: game.pgn,
       code: game.code,
-      whiteId: white.id || null,
-      whiteName: white.name || null,
-      blackId: black.id || null,
-      blackName: black.name || null,
+      stake: game.stake,
+      timer: game.timer,
+      timeControl: game.timeControl,
+      white: game.white.id,
+      black: game.black.id,
       startedAt: new Date(game.startedAt),
       endedAt: game.endedAt ? new Date(game.endedAt) : null,
     });
 
     const result = await newGame.save();
 
+    result.populate("white black", "_id name");
+
     // Update user stats (wins, losses, draws)
-    if (white.id || black.id) {
+    if (game.white.id || game.black.id) {
       if (game.winner === "draw") {
-        if (white.id) {
-          await UserModel.updateOne({ _id: white.id }, { $inc: { draws: 1 } });
+        if (game.white.id) {
+          await UserModel.updateOne(
+            { _id: game.white.id },
+            { $inc: { draws: 1 } }
+          );
         }
-        if (black.id) {
-          await UserModel.updateOne({ _id: black.id }, { $inc: { draws: 1 } });
+        if (game.black.id) {
+          await UserModel.updateOne(
+            { _id: game.black.id },
+            { $inc: { draws: 1 } }
+          );
         }
       } else {
-        const winner = game.winner === "white" ? white : black;
-        const loser = game.winner === "white" ? black : white;
+        const winnerId =
+          game.winner === "white" ? game.white.id : game.black.id;
+        const looserId =
+          game.winner === "white" ? game.black.id : game.white.id;
 
-        if (winner.id) {
-          await UserModel.updateOne({ _id: winner.id }, { $inc: { wins: 1 } });
+        if (winnerId) {
+          await UserModel.updateOne({ _id: winnerId }, { $inc: { wins: 1 } });
         }
-        if (loser.id) {
-          await UserModel.updateOne({ _id: loser.id }, { $inc: { losses: 1 } });
+        if (looserId) {
+          await UserModel.updateOne({ _id: looserId }, { $inc: { losses: 1 } });
         }
       }
     }
 
-    return {
-      id: result._id.toString(),
-      winner: result.winner,
-      endReason: result.endReason,
-      pgn: result.pgn,
-      white: { id: result.whiteId, name: result.whiteName },
-      black: { id: result.blackId, name: result.blackName },
-      startedAt: result.startedAt.getTime(),
-      endedAt: result.endedAt ? result.endedAt.getTime() : undefined,
-    };
+    return result;
   } catch (err: unknown) {
     console.log(err);
     return null;
@@ -81,16 +69,17 @@ export const findById = async (id: string) => {
     );
 
     if (game) {
-      return {
-        id: game._id.toString(),
-        winner: game.winner,
-        endReason: game.endReason,
-        pgn: game.pgn,
-        white: { id: game.whiteId.toString(), name: game.whiteName },
-        black: { id: game.blackId.toString(), name: game.blackName },
-        startedAt: game.startedAt.getTime(),
-        endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
-      };
+      return null;
+      // return {
+      //   id: game._id.toString(),
+      //   winner: game.winner,
+      //   endReason: game.endReason,
+      //   pgn: game.pgn,
+      //   white: { id: game.whiteId.toString(), name: game.whiteName },
+      //   black: { id: game.blackId.toString(), name: game.blackName },
+      //   startedAt: game.startedAt.getTime(),
+      //   endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
+      // };
     } else {
       return null;
     }
@@ -136,8 +125,8 @@ export const findByUserId = async (id: string, limit = 10) => {
       winner: game.winner,
       endReason: game.endReason,
       pgn: game.pgn,
-      white: { id: game.whiteId.toString(), name: game.whiteName },
-      black: { id: game.blackId.toString(), name: game.blackName },
+      // white: { id: game.whiteId.toString(), name: game.whiteName },
+      // black: { id: game.blackId.toString(), name: game.blackName },
       startedAt: game.startedAt.getTime(),
       endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
     }));
@@ -152,16 +141,17 @@ export const remove = async (id: string) => {
     const game = await GameModel.findByIdAndDelete(id);
 
     if (game) {
-      return {
-        id: game._id.toString(),
-        winner: game.winner,
-        endReason: game.endReason,
-        pgn: game.pgn,
-        white: { id: game.whiteId.toString(), name: game.whiteName },
-        black: { id: game.blackId.toString(), name: game.blackName },
-        startedAt: game.startedAt.getTime(),
-        endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
-      };
+      return null;
+      // return {
+      //   id: game._id.toString(),
+      //   winner: game.winner,
+      //   endReason: game.endReason,
+      //   pgn: game.pgn,
+      //   white: { id: game.whiteId.toString(), name: game.whiteName },
+      //   black: { id: game.blackId.toString(), name: game.blackName },
+      //   startedAt: game.startedAt.getTime(),
+      //   endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
+      // };
     } else {
       return null;
     }

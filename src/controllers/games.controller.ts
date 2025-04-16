@@ -58,10 +58,10 @@ export const getActiveGame = asyncHandler(
     if (!game) {
       const archivedGame = await GameModel.findOne({
         code: req.params.code,
-      });
+      }).populate("white black", "_id name");
 
       if (archivedGame) {
-        res.status(200).json(game);
+        res.status(200).json(archivedGame);
       } else {
         res.status(404).end();
       }

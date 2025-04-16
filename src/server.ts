@@ -12,8 +12,8 @@ import { connectDatabase } from "./db/index.js";
 import { errorHandler } from "./db/helper.js";
 
 const corsConfig = {
-    origin: process.env.CORS_ORIGIN,
-    credentials: true
+  origin: process.env.CLIENT_URL,
+  credentials: true,
 };
 
 const app = express();
@@ -32,28 +32,28 @@ app.use(errorHandler);
 
 // Socket.io
 export const io = new Server(server, {
-    cors: corsConfig,
-    pingInterval: 30000,
-    pingTimeout: 50000
+  cors: corsConfig,
+  pingInterval: 30000,
+  pingTimeout: 50000,
 });
 
 io.use((socket, next) => {
-    session(socket.request as Request, {} as Response, next as NextFunction);
+  session(socket.request as Request, {} as Response, next as NextFunction);
 });
 
 io.use((socket, next) => {
-    const session = socket.request.session;
-    if (session && session.user) {
-        next();
-    } else {
-        console.log("io.use: no session");
-        socket.disconnect();
-    }
+  const session = socket.request.session;
+  if (session && session.user) {
+    next();
+  } else {
+    console.log("io.use: no session");
+    socket.disconnect();
+  }
 });
 
 initSocket();
 
 const port = process.env.PORT;
 server.listen(port, () => {
-    console.log(`chesser api server listening on :${port}`);
+  console.log(`chesser api server listening on :${port}`);
 });

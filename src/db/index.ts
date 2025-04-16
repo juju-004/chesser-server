@@ -36,10 +36,16 @@ const gameSchema = new mongoose.Schema({
   endReason: { type: String, maxlength: 16 },
   code: { type: String, maxlength: 7 },
   pgn: { type: String },
-  whiteId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  whiteName: { type: String, maxlength: 32 },
-  blackId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  blackName: { type: String, maxlength: 32 },
+  timeControl: { type: Number },
+  timer: {
+    whiteTime: { type: Number }, // in milliseconds
+    blackTime: { type: Number }, // in milliseconds
+    lastUpdate: { type: Number }, // timestamp
+    activeColor: { type: String, maxlength: 5 },
+  },
+  chat: { type: Object },
+  white: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  black: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   startedAt: { type: Date, required: true },
   endedAt: { type: Date, default: Date.now },
 });

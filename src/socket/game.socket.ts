@@ -119,15 +119,15 @@ const gameOver = async (
   game: Game,
   { reason, winnerName, winnerSide }: GameOverProps
 ) => {
-  const { id } = await GameService.save(game);
-  game.id = id;
+  const result = await GameService.save(game);
+  game.id = result.id;
   game.status = "ended";
 
   if (game.timeout) {
     clearTimeout(game.timeout);
   }
 
-  io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
+  io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, result });
   activeGames.splice(activeGames.indexOf(game), 1);
 };
 
