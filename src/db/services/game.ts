@@ -17,16 +17,19 @@ export const save = async (game: Game) => {
       white: game.white.id,
       black: game.black.id,
       startedAt: new Date(game.startedAt),
-      endedAt: game.endedAt ? new Date(game.endedAt) : null,
+      endedAt: game.endedAt ? new Date(game.endedAt) : Date.now(),
     });
 
     const result = await newGame.save();
 
-    result.populate("white black", "_id name");
+    const populatedResult = await result.populate(
+      "white black",
+      "_id name wallet"
+    );
 
     // Update user stats (wins, losses, draws)
     if (game.white.id || game.black.id) {
-      if (game.winner === "draw") {
+      if (!game.winner) {
         if (game.white.id) {
           await UserModel.updateOne(
             { _id: game.white.id },
@@ -46,15 +49,23 @@ export const save = async (game: Game) => {
           game.winner === "white" ? game.black.id : game.white.id;
 
         if (winnerId) {
-          await UserModel.updateOne({ _id: winnerId }, { $inc: { wins: 1 } });
+          await UserModel.updateOne(
+            { _id: winnerId },
+            { $inc: { wins: 1, wallet: game.stake } }
+          );
         }
         if (looserId) {
-          await UserModel.updateOne({ _id: looserId }, { $inc: { losses: 1 } });
+          await UserModel.updateOne(
+            { _id: looserId },
+            { $inc: { losses: 1, wallet: -game.stake } }
+          );
         }
       }
     }
 
-    return result;
+    const finalResponse = populatedResult.toObject();
+
+    return finalResponse;
   } catch (err: unknown) {
     console.log(err);
     return null;

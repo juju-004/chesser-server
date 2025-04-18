@@ -98,6 +98,7 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
   const user: User = {
     id: req.session.user.id,
     name: req.session.user.name,
+    wallet: findUser[0]?.wallet,
     connected: false,
   };
 

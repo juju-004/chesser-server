@@ -1,4 +1,4 @@
-import type { Game } from "../../types/index.js";
+import type { Game, User } from "../../types/index.js";
 import { Chess } from "chess.js";
 import type { DisconnectReason, Socket } from "socket.io";
 
@@ -119,9 +119,9 @@ const gameOver = async (
   game: Game,
   { reason, winnerName, winnerSide }: GameOverProps
 ) => {
+  game.winner = winnerSide || "draw";
+
   const result = await GameService.save(game);
-  game.id = result.id;
-  game.status = "ended";
 
   if (game.timeout) {
     clearTimeout(game.timeout);
@@ -185,7 +185,7 @@ export async function getLatestGame(this: Socket) {
 
 interface GameOverProps {
   reason: string;
-  winnerSide: string;
+  winnerSide?: "white" | "black" | "draw";
   winnerName: string;
 }
 
@@ -309,7 +309,7 @@ export async function sendMove(
   }
 }
 
-export async function joinAsPlayer(this: Socket) {
+export async function joinAsPlayer(this: Socket, wallet: number) {
   try {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game) return;
@@ -322,6 +322,7 @@ export async function joinAsPlayer(this: Socket) {
         id: this.request.session.user.id,
         name: this.request.session.user.name,
         connected: true,
+        wallet,
       };
       game.white = sessionUser;
       if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
@@ -335,6 +336,7 @@ export async function joinAsPlayer(this: Socket) {
         id: this.request.session.user.id,
         name: this.request.session.user.name,
         connected: true,
+        wallet,
       };
       game.black = sessionUser;
       if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
