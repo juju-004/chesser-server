@@ -116,6 +116,7 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
       activeColor: "white",
       started: false,
     },
+    chat: [],
   };
 
   // Assign sides to the user based on input or randomly

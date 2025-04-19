@@ -429,6 +429,15 @@ export async function chat(
   message: string,
   server?: boolean | undefined
 ) {
+  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+
+  if (game) {
+    game.chat.push({
+      author: { name: server ? "server" : this.request.session.user.name },
+      message,
+    });
+  }
+
   if (server) {
     io.to(Array.from(this.rooms)[1]).emit("chat", {
       author: { name: "server" },
@@ -436,7 +445,7 @@ export async function chat(
     });
   } else {
     this.to(Array.from(this.rooms)[1]).emit("chat", {
-      author: this.request.session.user,
+      author: { name: this.request.session.user.name },
       message,
     });
   }

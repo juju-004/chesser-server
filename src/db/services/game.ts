@@ -12,6 +12,7 @@ export const save = async (game: Game) => {
       pgn: game.pgn,
       code: game.code,
       stake: game.stake,
+      chat: game.chat,
       timer: game.timer,
       timeControl: game.timeControl,
       white: game.white.id,

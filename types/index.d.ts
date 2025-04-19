@@ -13,6 +13,7 @@ export interface Game {
   black?: User;
   status?: "started" | "inPlay" | "ended";
   winner?: "white" | "black" | "draw";
+  chat: Message[];
   endReason?:
     | "draw"
     | "checkmate"
@@ -49,4 +50,9 @@ export interface User {
   connected?: boolean;
   disconnectedOn?: number;
   offersDraw?: number;
+}
+
+export interface Message {
+  author: User;
+  message: string;
 }

@@ -213,17 +213,21 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
   //     }
   // }
 
-  req.session.user = {
-    id: users[0].id.toString(),
-    name: users[0].name,
-    email: users[0].email,
-    wins: users[0].wins,
-    losses: users[0].losses,
-    draws: users[0].draws,
-  };
-  req.session.save(() => {
-    res.status(200).json(req.session.user);
-  });
+  if (users[0].verified) {
+    req.session.user = {
+      id: users[0].id.toString(),
+      name: users[0].name,
+      email: users[0].email,
+      wins: users[0].wins,
+      losses: users[0].losses,
+      draws: users[0].draws,
+    };
+    req.session.save(() => {
+      res.status(200).json(req.session.user);
+    });
+  } else {
+    res.status(200).json({ email: users[0].email });
+  }
 });
 
 export const updateUser = async (req: Request, res: Response) => {

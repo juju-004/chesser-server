@@ -44,7 +44,7 @@ const gameSchema = new mongoose.Schema(
       lastUpdate: { type: Number }, // timestamp
       activeColor: { type: String, maxlength: 5 },
     },
-    chat: { type: Object },
+    chat: { type: Array },
     white: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     black: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     startedAt: { type: Date, required: true },
