@@ -149,11 +149,11 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
     (game.white &&
       game.white.id === this.request.session.user.id &&
       (game.black?.connected ||
-        Date.now() - (game.black?.disconnectedOn as number) < 50000)) ||
+        Date.now() - (game.black?.disconnectedOn as number) < 25000)) ||
     (game.black &&
       game.black.id === this.request.session.user.id &&
       (game.white?.connected ||
-        Date.now() - (game.white?.disconnectedOn as number) < 50000))
+        Date.now() - (game.white?.disconnectedOn as number) < 25000))
   ) {
     console.log(
       `claimAbandoned: Invalid claim by ${this.request.session.user.name}. Opponent is still connected or disconnected less than 50 seconds ago.`
@@ -163,18 +163,20 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
 
   game.endReason = "abandoned";
 
+  let winnerSide = undefined;
+
   if (type === "draw") {
-    game.winner = "draw";
+    winnerSide = undefined;
   } else if (game.white && game.white?.id === this.request.session.user.id) {
-    game.winner = "white";
+    winnerSide = "white";
   } else if (game.black && game.black?.id === this.request.session.user.id) {
-    game.winner = "black";
+    winnerSide = "black";
   }
 
   gameOver(game, {
     reason: game.endReason,
     winnerName: this.request.session.user.name,
-    winnerSide: game.winner === "draw" ? undefined : game.winner,
+    winnerSide,
   });
 }
 
@@ -355,73 +357,67 @@ export async function joinAsPlayer(this: Socket, wallet: number) {
     console.error(error);
   }
 }
-export async function abortGame(this: Socket, code: string, type?: string) {
-  const game = activeGames.find((g) => g.code === code);
+
+export async function abort(this: Socket) {
+  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+
   if (!game) return;
 
-  if (type === "r") {
-    const winnerSide =
-      this.request.session.user.id === game.black?.id ? "white" : "black";
-    const winnerName = winnerSide ? game[winnerSide]?.name : undefined;
-
-    game.endReason = "resigned";
-    game.status = "ended";
-
-    gameOver(game, { reason: "resigned", winnerName, winnerSide });
-  } else {
-    game.endReason = "aborted";
-    game.status = "ended";
-    activeGames.splice(activeGames.indexOf(game), 1);
-    io.to(game.code).emit("updateLobby", game);
-  }
+  game.endReason = "aborted";
+  game.status = "ended";
+  activeGames.splice(activeGames.indexOf(game), 1);
+  io.to(game.code).emit("updateLobby", game);
 }
 
-export async function offerDraw(
-  this: Socket,
-  code: string,
-  side: "black" | "white",
-  accepted?: boolean
-) {
-  const game = activeGames.find((g) => g.code === code);
+export async function resign(this: Socket) {
+  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+
   if (!game) return;
 
-  if (accepted) {
-    const opponent = side === "black" ? "white" : "black";
-    if (
-      !game[opponent]?.offersDraw ||
-      Date.now() - game[opponent].offersDraw >= 20000
-    ) {
-      return;
-    }
+  const winnerSide =
+    this.request.session.user.id === game.black?.id ? "white" : "black";
+  const winnerName = game[winnerSide]?.name;
 
-    const winnerSide = undefined;
-    const winnerName = undefined;
+  game.endReason = "resigned";
+  game.status = "ended";
 
-    game.winner = "draw";
-    game.endReason = `draw`;
-    game.status = "ended";
+  gameOver(game, { reason: "resigned", winnerName, winnerSide });
+}
 
-    io.to(Array.from(this.rooms)[1]).emit("chat", {
-      author: { name: "server" },
-      message: `${opponent} accepts draw`,
-    });
-    gameOver(game, { reason: game.endReason, winnerName, winnerSide });
-  } else {
-    if (
-      game[side]?.offersDraw &&
-      Date.now() - game[side]?.offersDraw <= 20000
-    ) {
-      return;
-    }
+export async function offerDraw(this: Socket) {
+  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  if (!game) return;
 
-    game[side].offersDraw = Date.now();
+  io.to(Array.from(this.rooms)[1]).emit("chat", {
+    author: { name: "server" },
+    message: `${this.request.session.user.name} offers a draw`,
+  });
 
-    io.to(Array.from(this.rooms)[1]).emit("chat", {
-      author: { name: "server" },
-      message: `${side} offers a draw`,
-    });
-    this.to(game.code).emit("offerdraw");
-  }
+  game.chat.push({
+    author: { name: "server" },
+    message: `${this.request.session.user.name} offers a draw`,
+  });
+  this.to(game.code).emit("offerdraw");
+}
+
+export async function acceptDraw(this: Socket) {
+  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  if (!game) return;
+
+  const winnerSide = undefined;
+  const winnerName = undefined;
+
+  game.endReason = `draw`;
+
+  io.to(Array.from(this.rooms)[1]).emit("chat", {
+    author: { name: "server" },
+    message: `${this.request.session.user.name} accepts draw`,
+  });
+  game.chat.push({
+    author: { name: "server" },
+    message: `${this.request.session.user.name} accepts draw`,
+  });
+  gameOver(game, { reason: game.endReason, winnerName, winnerSide });
 }
 
 export async function chat(

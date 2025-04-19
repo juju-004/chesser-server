@@ -49,7 +49,6 @@ export interface User {
   wallet?: number;
   connected?: boolean;
   disconnectedOn?: number;
-  offersDraw?: number;
 }
 
 export interface Message {
