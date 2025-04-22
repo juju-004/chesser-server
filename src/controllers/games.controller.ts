@@ -10,7 +10,7 @@ export const getGames = async (req: Request, res: Response) => {
   try {
     if (!req.query.id && !req.query.userid) {
       // Get all active games
-      res.status(200).json(activeGames.filter((g) => !g.unlisted && !g.winner));
+      // res.status(200).json(activeGames.filter((g) => !g.unlisted && !g.winner));
       return;
     }
 
@@ -53,7 +53,7 @@ export const getActiveGame = asyncHandler(
       throw Error("Invalid code");
     }
 
-    const game = activeGames.find((g) => g.code === req.params.code);
+    const game = activeGames.get(req.params.code);
 
     if (!game) {
       const archivedGame = await GameModel.findOne({
@@ -98,7 +98,6 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
   const user: User = {
     id: req.session.user.id,
     name: req.session.user.name,
-    wallet: findUser[0]?.wallet,
     connected: false,
   };
 
@@ -134,7 +133,7 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Save the game to active games
-  activeGames.push(game);
+  activeGames.set(game.code, game);
 
   // Respond with the game code
   res.status(201).json({ code: game.code });

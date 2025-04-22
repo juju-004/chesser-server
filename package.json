@@ -9,6 +9,7 @@
     "dev": "tsc-watch --noClear --onSuccess \"node dist/server.js\""
   },
   "dependencies": {
+    "@fastify/secure-session": "^8.2.0",
     "argon2": "^0.40.3",
     "chess.js": "1.0.0-beta.8",
     "connect-mongo": "^4.6.0",
@@ -16,10 +17,12 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
+    "mongodb": "^6.15.0",
     "mongoose": "^8.5.1",
     "nanoid": "^5.0.7",
     "notifycx": "^0.2.6",
     "socket.io": "^4.7.5",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.37.0",
     "xss": "^1.0.15"
   },
   "devDependencies": {

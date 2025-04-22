@@ -1,14 +1,14 @@
 import { Game, User } from "../../../types/index.js";
 import { GameModel, UserModel } from "../index.js"; // Import models from index.js
 
-export const activeGames: Game[] = [];
+export const activeGames: Map<string, Game> = new Map();
 
 export const save = async (game: Game) => {
   try {
     // Create game document in MongoDB
     const newGame = new GameModel({
       winner: game.winner || null,
-      endReason: game.endReason || null,
+      endReason: game.endReason,
       pgn: game.pgn,
       code: game.code,
       stake: game.stake,

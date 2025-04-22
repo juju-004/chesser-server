@@ -2,40 +2,38 @@ import type { Game, User } from "../../types/index.js";
 import { Chess } from "chess.js";
 import type { DisconnectReason, Socket } from "socket.io";
 
-import GameService, { activeGames } from "../db/services/game.js";
+import { activeGames } from "../db/services/game.js";
 import { io } from "../server.js";
+import {
+  deleteGameByCode,
+  findGameByCode,
+  gameOver,
+  getUpdatedTimer,
+  getUserFromSession,
+} from "./utils.js";
 
 // TODO: clean up
 
 export async function joinLobby(this: Socket, gameCode: string) {
-  const game = activeGames.find((g) => g.code === gameCode);
+  const game = activeGames.get(gameCode);
   if (!game) return;
 
-  if (game.host && game.host?.id === this.request.session.user.id) {
-    game.host.connected = true;
-    if (game.host.name !== this.request.session.user.name) {
-      game.host.name = this.request.session.user.name;
+  const user = getUserFromSession(this);
+
+  const updateUser = (player: User | undefined) => {
+    if (player?.id === user.id) {
+      player.connected = true;
+      if (player.name !== user.name) player.name = user.name;
     }
-  }
-  if (game.white && game.white?.id === this.request.session.user.id) {
-    game.white.connected = true;
-    game.white.disconnectedOn = undefined;
-    if (game.white.name !== this.request.session.user.name) {
-      game.white.name = this.request.session.user.name;
-    }
-  } else if (game.black && game.black?.id === this.request.session.user.id) {
-    game.black.connected = true;
-    game.black.disconnectedOn = undefined;
-    if (game.black.name !== this.request.session.user.name) {
-      game.black.name = this.request.session.user.name;
-    }
-  } else {
-    if (game.observers === undefined) game.observers = [];
-    const user = {
-      id: this.request.session.user.id,
-      name: this.request.session.user.name,
-    };
-    game.observers?.push(user);
+  };
+
+  // Update host or player info
+  if (game.host) updateUser(game.host);
+  if (game.white) updateUser(game.white);
+  else if (game.black) updateUser(game.black);
+  else {
+    if (!game.observers) game.observers = [];
+    game.observers.push({ id: user.id, name: user.name });
   }
 
   if (this.rooms.size >= 2) {
@@ -61,13 +59,14 @@ export async function leaveLobby(
     return;
   }
 
-  const game = activeGames.find(
+  const { id } = getUserFromSession(this);
+  const game = Array.from(activeGames.values()).find(
     (g) =>
       g.code ===
-        (code || this.rooms.size === 2 ? Array.from(this.rooms)[1] : 0) ||
-      g.black?.id === this.request.session.user.id ||
-      g.white?.id === this.request.session.user.id ||
-      g.observers?.find((o) => o.id === this.request.session.user.id)
+        (code || (this.rooms.size === 2 ? Array.from(this.rooms)[1] : 0)) ||
+      g.black?.id === id ||
+      g.white?.id === id ||
+      g.observers?.some((o) => o.id === id)
   );
 
   if (!game) {
@@ -76,21 +75,18 @@ export async function leaveLobby(
   }
 
   // Handle player disconnection
-  const user = game.observers?.find(
-    (o) => o.id === this.request.session.user.id
-  );
-  if (user) {
-    game.observers?.splice(game.observers?.indexOf(user), 1);
-  }
-  if (game.black && game.black?.id === this.request.session.user.id) {
-    game.black.connected = false;
-    game.black.disconnectedOn = Date.now();
-  } else if (game.white && game.white?.id === this.request.session.user.id) {
-    game.white.connected = false;
-    game.white.disconnectedOn = Date.now();
-  }
+  const observer = game.observers?.find((o) => o.id === id);
+  if (observer) game.observers?.splice(game.observers?.indexOf(observer), 1);
 
-  // Count remaining player sockets (excluding observers)
+  const disconnectUser = (user: User | undefined) => {
+    if (user.id === id) {
+      user.connected = false;
+      user.disconnectedOn = Date.now();
+    }
+  };
+  if (game.black) disconnectUser(game.black);
+  else if (game.white) disconnectUser(game.white);
+
   const sockets = await io.in(game.code).fetchSockets();
   const remainingPlayers = sockets.filter((socket) => {
     const socketUserId =
@@ -104,42 +100,25 @@ export async function leaveLobby(
     const timeout = game.pgn ? 20 * 60 * 1000 : 60 * 1000;
     game.timeout = Number(
       setTimeout(() => {
-        activeGames.splice(activeGames.indexOf(game), 1);
+        activeGames.delete(code);
       }, timeout)
     );
   }
 
   // Notify remaining players
   io.to(game.code).emit("updateLobby", game);
-
   await this.leave(code || Array.from(this.rooms)[1]);
 }
 
-const gameOver = async (
-  game: Game,
-  { reason, winnerName, winnerSide }: GameOverProps
-) => {
-  game.winner = winnerSide || "draw";
-
-  const result = await GameService.save(game);
-
-  if (game.timeout) {
-    clearTimeout(game.timeout);
-  }
-
-  io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, result });
-  activeGames.splice(activeGames.indexOf(game), 1);
-};
-
 export async function claimAbandoned(this: Socket, type: "win" | "draw") {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  const game = findGameByCode(this);
+  const { id, name } = getUserFromSession(this);
   if (
     !game ||
     !game.pgn ||
     !game.white ||
     !game.black ||
-    (game.white.id !== this.request.session.user.id &&
-      game.black.id !== this.request.session.user.id)
+    (game.white.id !== id && game.black.id !== id)
   ) {
     console.log(`claimAbandoned: Invalid game or user is not a player.`);
     return;
@@ -147,53 +126,38 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
 
   if (
     (game.white &&
-      game.white.id === this.request.session.user.id &&
+      game.white.id === id &&
       (game.black?.connected ||
         Date.now() - (game.black?.disconnectedOn as number) < 25000)) ||
     (game.black &&
-      game.black.id === this.request.session.user.id &&
+      game.black.id === id &&
       (game.white?.connected ||
         Date.now() - (game.white?.disconnectedOn as number) < 25000))
   ) {
     console.log(
-      `claimAbandoned: Invalid claim by ${this.request.session.user.name}. Opponent is still connected or disconnected less than 50 seconds ago.`
+      `claimAbandoned: Invalid claim by ${name}. Opponent is still connected or disconnected less than 50 seconds ago.`
     );
     return;
   }
 
   game.endReason = "abandoned";
 
-  let winnerSide = undefined;
-
-  if (type === "draw") {
-    winnerSide = undefined;
-  } else if (game.white && game.white?.id === this.request.session.user.id) {
-    winnerSide = "white";
-  } else if (game.black && game.black?.id === this.request.session.user.id) {
-    winnerSide = "black";
-  }
-
-  gameOver(game, {
-    reason: game.endReason,
-    winnerName: this.request.session.user.name,
-    winnerSide,
+  gameOver({
+    game,
+    winnerName: name,
+    winnerSide:
+      type === "draw" ? undefined : game.white.id === id ? "white" : "black",
   });
 }
 
 export async function getLatestGame(this: Socket) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  const game = findGameByCode(this);
   if (game) this.emit("receivedLatestGame", game);
-}
-
-interface GameOverProps {
-  reason: string;
-  winnerSide?: "white" | "black" | "draw";
-  winnerName: string;
 }
 
 function startTimerInterval(code: string) {
   const gameTimer = setInterval(() => {
-    const game = activeGames.find((g) => g.code === code);
+    const game = activeGames.get(code);
 
     if (!game || game?.endReason) {
       clearInterval(gameTimer);
@@ -212,12 +176,7 @@ function startTimerInterval(code: string) {
     game.timer.lastUpdate = now;
 
     // Broadcast update to all clients
-    io.to(game.code).emit("timeUpdate", {
-      whiteTime: game.timer.whiteTime,
-      blackTime: game.timer.blackTime,
-      activeColor: game.timer.activeColor,
-      timerStarted: game.timer.started,
-    });
+    io.to(game.code).emit("timeUpdate", getUpdatedTimer(game.timer));
 
     // Check for timeout
     if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
@@ -227,9 +186,8 @@ function startTimerInterval(code: string) {
 
       game.winner = winnerSide;
       game.endReason = "timeout";
-      game.status = "ended";
 
-      gameOver(game, { reason: "timeout", winnerName, winnerSide });
+      gameOver({ game, winnerName, winnerSide });
     }
   }, 1000);
 }
@@ -238,7 +196,8 @@ export async function sendMove(
   this: Socket,
   m: { from: string; to: string; promotion?: string }
 ) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  const game = findGameByCode(this);
+  const { id } = getUserFromSession(this);
   if (!game || game.endReason || game.winner) return;
 
   const chess = new Chess();
@@ -251,15 +210,11 @@ export async function sendMove(
     const prevColor = prevTurn === "w" ? "white" : "black";
 
     if (
-      (prevTurn === "b" && this.request.session.user.id !== game.black?.id) ||
-      (prevTurn === "w" && this.request.session.user.id !== game.white?.id)
+      (prevTurn === "b" && id !== game.black?.id) ||
+      (prevTurn === "w" && id !== game.white?.id)
     ) {
       throw new Error("not turn to move");
     }
-
-    // Track if both players have moved
-    const moveHistory = chess.history();
-    const isSecondMove = moveHistory.length === 1;
 
     const newMove = chess.move(m);
     if (!newMove) throw new Error("invalid move");
@@ -267,12 +222,9 @@ export async function sendMove(
     game.pgn = chess.pgn();
 
     // Only start counting time after both players have moved
-    if (isSecondMove) {
+    if (chess.history().length === 2) {
       game.status = "inPlay";
-
-      io.to(game.code).emit("updateLobby", game);
       game.timer.started = true;
-      game.timer.lastUpdate = Date.now(); // Reset the clock start time
       startTimerInterval(game.code);
     }
     // Switch active player
@@ -280,13 +232,12 @@ export async function sendMove(
     game.timer.lastUpdate = Date.now();
 
     // Emit updates
+    io.to(game.code).emit(
+      "timeUpdate",
+      getUpdatedTimer(game.timer),
+      chess.history().length === 2
+    );
     this.to(game.code).emit("receivedMove", m);
-    io.to(game.code).emit("timeUpdate", {
-      whiteTime: game.timer.whiteTime,
-      blackTime: game.timer.blackTime,
-      activeColor: game.timer.activeColor,
-      timerStarted: game.timer.started,
-    });
 
     // Handle game over conditions
     if (chess.isGameOver()) {
@@ -298,12 +249,13 @@ export async function sendMove(
       else if (chess.isDraw()) reason = "draw";
 
       const winnerSide = reason === "checkmate" ? prevColor : undefined;
-      const winnerName = winnerSide ? game[winnerSide]?.name : undefined;
-
-      game.winner = reason === "checkmate" ? winnerSide : "draw";
       game.endReason = reason;
 
-      gameOver(game, { reason, winnerName, winnerSide });
+      gameOver({
+        game,
+        winnerName: winnerSide ? game[winnerSide]?.name : undefined,
+        winnerSide,
+      });
     }
   } catch (e) {
     console.log("sendMove error: " + e);
@@ -311,43 +263,27 @@ export async function sendMove(
   }
 }
 
-export async function joinAsPlayer(this: Socket, wallet: number) {
+export async function joinAsPlayer(this: Socket) {
   try {
-    const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+    const game = findGameByCode(this);
     if (!game) return;
-    const user = game.observers?.find(
-      (o) => o.id === this.request.session.user.id
-    );
 
-    if (!game.white) {
-      const sessionUser = {
-        id: this.request.session.user.id,
-        name: this.request.session.user.name,
-        connected: true,
-        wallet,
-      };
-      game.white = sessionUser;
-      if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
-      io.to(game.code as string).emit("userJoinedAsPlayer", {
-        name: this.request.session.user.name,
-        side: "white",
-      });
+    const { id, name } = getUserFromSession(this);
+
+    const observer = game.observers?.find((o) => o.id === id);
+
+    const asPlayer = (side: "black" | "white") => {
+      game[side] = { id, name, connected: true };
+
+      if (observer)
+        game.observers?.splice(game.observers?.indexOf(observer), 1);
+      io.to(game.code as string).emit("userJoinedAsPlayer", { name, side });
       game.startedAt = Date.now();
-    } else if (!game.black) {
-      const sessionUser = {
-        id: this.request.session.user.id,
-        name: this.request.session.user.name,
-        connected: true,
-        wallet,
-      };
-      game.black = sessionUser;
-      if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
-      io.to(game.code as string).emit("userJoinedAsPlayer", {
-        name: this.request.session.user.name,
-        side: "black",
-      });
-      game.startedAt = Date.now();
-    } else {
+    };
+
+    if (!game.white) asPlayer("white");
+    else if (!game.black) asPlayer("black");
+    else {
       console.log(
         "joinAsPlayer: attempted to join a game with already 2 players"
       );
@@ -359,65 +295,63 @@ export async function joinAsPlayer(this: Socket, wallet: number) {
 }
 
 export async function abort(this: Socket) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
-
+  const game = findGameByCode(this);
   if (!game) return;
 
   game.endReason = "aborted";
   game.status = "ended";
-  activeGames.splice(activeGames.indexOf(game), 1);
+
+  deleteGameByCode(this);
   io.to(game.code).emit("updateLobby", game);
 }
 
 export async function resign(this: Socket) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
-
+  const game = findGameByCode(this);
   if (!game) return;
 
   const winnerSide =
-    this.request.session.user.id === game.black?.id ? "white" : "black";
-  const winnerName = game[winnerSide]?.name;
+    getUserFromSession(this).id === game.black?.id ? "white" : "black";
 
   game.endReason = "resigned";
-  game.status = "ended";
 
-  gameOver(game, { reason: "resigned", winnerName, winnerSide });
+  gameOver({
+    game,
+    winnerName: game[winnerSide]?.name,
+    winnerSide,
+  });
 }
 
 export async function offerDraw(this: Socket) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  const game = findGameByCode(this);
   if (!game) return;
 
   io.to(Array.from(this.rooms)[1]).emit("chat", {
     author: { name: "server" },
-    message: `${this.request.session.user.name} offers a draw`,
+    message: `${getUserFromSession(this).name} offers a draw`,
   });
 
   game.chat.push({
     author: { name: "server" },
-    message: `${this.request.session.user.name} offers a draw`,
+    message: `${getUserFromSession(this).name} offers a draw`,
   });
   this.to(game.code).emit("offerdraw");
 }
 
 export async function acceptDraw(this: Socket) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  const game = findGameByCode(this);
   if (!game) return;
-
-  const winnerSide = undefined;
-  const winnerName = undefined;
 
   game.endReason = `draw`;
 
   io.to(Array.from(this.rooms)[1]).emit("chat", {
     author: { name: "server" },
-    message: `${this.request.session.user.name} accepts draw`,
+    message: `${getUserFromSession(this).name} accepts draw`,
   });
   game.chat.push({
     author: { name: "server" },
-    message: `${this.request.session.user.name} accepts draw`,
+    message: `${getUserFromSession(this).name} accepts draw`,
   });
-  gameOver(game, { reason: game.endReason, winnerName, winnerSide });
+  gameOver({ game });
 }
 
 export async function chat(
@@ -425,11 +359,12 @@ export async function chat(
   message: string,
   server?: boolean | undefined
 ) {
-  const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+  const game = findGameByCode(this);
+  const { name } = getUserFromSession(this);
 
   if (game) {
     game.chat.push({
-      author: { name: server ? "server" : this.request.session.user.name },
+      author: { name: server ? "server" : name },
       message,
     });
   }
@@ -441,7 +376,7 @@ export async function chat(
     });
   } else {
     this.to(Array.from(this.rooms)[1]).emit("chat", {
-      author: { name: this.request.session.user.name },
+      author: { name },
       message,
     });
   }
