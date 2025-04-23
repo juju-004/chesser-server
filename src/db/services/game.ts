@@ -5,6 +5,8 @@ export const activeGames: Map<string, Game> = new Map();
 
 export const save = async (game: Game) => {
   try {
+    console.log(game.timer);
+
     // Create game document in MongoDB
     const newGame = new GameModel({
       winner: game.winner || null,

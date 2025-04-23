@@ -39,10 +39,9 @@ const gameSchema = new mongoose.Schema(
     pgn: { type: String },
     timeControl: { type: Number },
     timer: {
-      whiteTime: { type: Number }, // in milliseconds
-      blackTime: { type: Number }, // in milliseconds
+      white: { type: Number }, // in milliseconds
+      black: { type: Number }, // in milliseconds
       lastUpdate: { type: Number }, // timestamp
-      activeColor: { type: String, maxlength: 5 },
     },
     chat: { type: Array },
     white: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

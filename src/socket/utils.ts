@@ -22,10 +22,8 @@ export const getUserFromSession = (socket: Socket) =>
 
 // Utility function to get updated timer data
 export const getUpdatedTimer = (timer: Game["timer"]) => ({
-  whiteTime: timer.whiteTime,
-  blackTime: timer.blackTime,
-  activeColor: timer.activeColor,
-  timerStarted: timer.started,
+  white: timer.white,
+  black: timer.black,
 });
 
 export const gameOver = async ({
@@ -33,6 +31,8 @@ export const gameOver = async ({
   winnerName,
   winnerSide,
 }: GameOverProps) => {
+  console.log("gameOver", game);
+
   game.winner = winnerSide || "draw";
   game.status = "ended";
 

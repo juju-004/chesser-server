@@ -155,7 +155,7 @@ export async function getLatestGame(this: Socket) {
   if (game) this.emit("receivedLatestGame", game);
 }
 
-function startTimerInterval(code: string) {
+function startTimerInterval(code: string, interval: number) {
   const gameTimer = setInterval(() => {
     const game = activeGames.get(code);
 
@@ -167,10 +167,10 @@ function startTimerInterval(code: string) {
     const elapsed = now - game.timer.lastUpdate;
 
     // Update the active player's time
-    if (game.timer.activeColor === "white") {
-      game.timer.whiteTime = Math.max(0, game.timer.whiteTime - elapsed);
+    if (game.activePlayer === "white") {
+      game.timer.white = Math.max(0, game.timer.white - elapsed);
     } else {
-      game.timer.blackTime = Math.max(0, game.timer.blackTime - elapsed);
+      game.timer.black = Math.max(0, game.timer.black - elapsed);
     }
 
     game.timer.lastUpdate = now;
@@ -179,8 +179,8 @@ function startTimerInterval(code: string) {
     io.to(game.code).emit("timeUpdate", getUpdatedTimer(game.timer));
 
     // Check for timeout
-    if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
-      const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
+    if (game.timer.white <= 0 || game.timer.black <= 0) {
+      const winnerSide = game.timer.white <= 0 ? "black" : "white";
       const winnerName =
         winnerSide === "white" ? game.white?.name : game.black?.name;
 
@@ -189,7 +189,7 @@ function startTimerInterval(code: string) {
 
       gameOver({ game, winnerName, winnerSide });
     }
-  }, 1000);
+  }, interval);
 }
 
 export async function sendMove(
@@ -223,20 +223,13 @@ export async function sendMove(
 
     // Only start counting time after both players have moved
     if (chess.history().length === 2) {
-      game.status = "inPlay";
-      game.timer.started = true;
-      startTimerInterval(game.code);
+      startTimerInterval(game.code, game.timeControl >= 3 ? 200 : 100);
     }
-    // Switch active player
-    game.timer.activeColor = prevColor === "white" ? "black" : "white";
+    game.activePlayer = prevColor === "white" ? "black" : "white";
     game.timer.lastUpdate = Date.now();
 
     // Emit updates
-    io.to(game.code).emit(
-      "timeUpdate",
-      getUpdatedTimer(game.timer),
-      chess.history().length === 2
-    );
+    io.to(game.code).emit("timeUpdate", getUpdatedTimer(game.timer));
     this.to(game.code).emit("receivedMove", m);
 
     // Handle game over conditions

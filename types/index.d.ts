@@ -1,9 +1,7 @@
 export interface GameTimer {
-  whiteTime: number; // in milliseconds
-  blackTime: number; // in milliseconds
+  white: number; // in milliseconds
+  black: number; // in milliseconds
   lastUpdate: number; // timestamp
-  activeColor: "white" | "black";
-  started: boolean;
 }
 
 export interface Game {
@@ -11,6 +9,7 @@ export interface Game {
   pgn?: string;
   white?: User;
   black?: User;
+  activePlayer?: "white" | "black";
   status?: "started" | "inPlay" | "ended";
   winner?: "white" | "black" | "draw";
   chat: Message[];

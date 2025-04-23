@@ -108,12 +108,11 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
     stake: amount,
     timeControl,
     status: "started",
+    activePlayer: "white",
     timer: {
-      whiteTime: timeControl * 60 * 1000, // Convert minutes to ms
-      blackTime: timeControl * 60 * 1000,
+      white: timeControl * 60 * 1000, // Convert minutes to ms
+      black: timeControl * 60 * 1000,
       lastUpdate: Date.now(),
-      activeColor: "white",
-      started: false,
     },
     chat: [],
   };
