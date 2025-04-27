@@ -13,6 +13,7 @@ import {
   offerDraw,
   resign,
   acceptDraw,
+  rematch,
 } from "./game.socket.js";
 
 const socketConnect = (socket: Socket) => {
@@ -42,6 +43,7 @@ const socketConnect = (socket: Socket) => {
   socket.on("offerDraw", offerDraw);
   socket.on("resign", resign);
   socket.on("acceptDraw", acceptDraw);
+  socket.on("rematch", rematch);
 };
 
 export const init = () => {

@@ -1,15 +1,13 @@
-import { Game, User } from "../../../types/index.js";
+import { Game } from "../../../types/index.js";
 import { GameModel, UserModel } from "../index.js"; // Import models from index.js
 
 export const activeGames: Map<string, Game> = new Map();
 
 export const save = async (game: Game) => {
   try {
-    console.log(game.timer);
-
     // Create game document in MongoDB
     const newGame = new GameModel({
-      winner: game.winner || null,
+      winner: game.winner,
       endReason: game.endReason,
       pgn: game.pgn,
       code: game.code,
@@ -32,19 +30,15 @@ export const save = async (game: Game) => {
 
     // Update user stats (wins, losses, draws)
     if (game.white.id || game.black.id) {
-      if (!game.winner) {
-        if (game.white.id) {
-          await UserModel.updateOne(
-            { _id: game.white.id },
-            { $inc: { draws: 1 } }
-          );
-        }
-        if (game.black.id) {
-          await UserModel.updateOne(
-            { _id: game.black.id },
-            { $inc: { draws: 1 } }
-          );
-        }
+      if (game.winner === "draw") {
+        await UserModel.updateOne(
+          { _id: game.white.id },
+          { $inc: { draws: 1 } }
+        );
+        await UserModel.updateOne(
+          { _id: game.black.id },
+          { $inc: { draws: 1 } }
+        );
       } else {
         const winnerId =
           game.winner === "white" ? game.white.id : game.black.id;

@@ -11,6 +11,7 @@ import {
   getUpdatedTimer,
   getUserFromSession,
 } from "./utils.js";
+import { nanoid } from "nanoid";
 
 // TODO: clean up
 
@@ -372,5 +373,41 @@ export async function chat(
       author: { name },
       message,
     });
+  }
+}
+
+export async function rematch(this: Socket, lastGame?: Game) {
+  if (lastGame) {
+    const game: Game = {
+      code: nanoid(6),
+      host: lastGame.host,
+      pgn: "",
+      stake: lastGame.stake,
+      timeControl: lastGame.timeControl,
+      status: "started",
+      activePlayer: "white",
+      startedAt: Date.now(),
+      white: {
+        ...lastGame.black,
+        connected: true,
+      },
+      black: {
+        ...lastGame.white,
+        connected: true,
+      },
+      timer: {
+        white: lastGame.timeControl * 60 * 1000, // Convert minutes to ms
+        black: lastGame.timeControl * 60 * 1000,
+        lastUpdate: Date.now(),
+      },
+      chat: [],
+    };
+
+    // Save the game to active games
+    activeGames.set(game.code, game);
+
+    io.to(Array.from(this.rooms)[1]).emit("newGameCode", game.code);
+  } else {
+    this.to(Array.from(this.rooms)[1]).emit("rematch");
   }
 }

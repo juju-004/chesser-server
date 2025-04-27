@@ -31,8 +31,6 @@ export const gameOver = async ({
   winnerName,
   winnerSide,
 }: GameOverProps) => {
-  console.log("gameOver", game);
-
   game.winner = winnerSide || "draw";
   game.status = "ended";
 
