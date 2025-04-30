@@ -19,22 +19,24 @@ export async function joinLobby(this: Socket, gameCode: string) {
   const game = activeGames.get(gameCode);
   if (!game) return;
 
-  const user = getUserFromSession(this);
+  const { id, name } = getUserFromSession(this);
 
   const updateUser = (player: User | undefined) => {
-    if (player?.id === user.id) {
+    if (player?.id === id) {
       player.connected = true;
-      if (player.name !== user.name) player.name = user.name;
+      player.disconnectedOn = undefined;
+      if (player.name !== name) player.name = name;
     }
   };
 
   // Update host or player info
   if (game.host) updateUser(game.host);
   if (game.white) updateUser(game.white);
-  else if (game.black) updateUser(game.black);
-  else {
+  if (game.black) updateUser(game.black);
+
+  if (game.white?.id !== id && game.black?.id !== id) {
     if (!game.observers) game.observers = [];
-    game.observers.push({ id: user.id, name: user.name });
+    game.observers.push({ id, name });
   }
 
   if (this.rooms.size >= 2) {
@@ -79,36 +81,32 @@ export async function leaveLobby(
   const observer = game.observers?.find((o) => o.id === id);
   if (observer) game.observers?.splice(game.observers?.indexOf(observer), 1);
 
-  const disconnectUser = (user: User | undefined) => {
-    if (user.id === id) {
-      user.connected = false;
-      user.disconnectedOn = Date.now();
-    }
-  };
-  if (game.black) disconnectUser(game.black);
-  else if (game.white) disconnectUser(game.white);
-
-  const sockets = await io.in(game.code).fetchSockets();
-  const remainingPlayers = sockets.filter((socket) => {
-    const socketUserId =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      socket.handshake.auth?.userId ||
-      (socket as any).request?.session?.user?.id;
-    return socketUserId === game.white?.id || socketUserId === game.black?.id;
-  }).length;
-
-  if (remainingPlayers <= 1) {
-    const timeout = game.pgn ? 20 * 60 * 1000 : 60 * 1000;
-    game.timeout = Number(
-      setTimeout(() => {
-        activeGames.delete(code);
-      }, timeout)
-    );
+  if (game.black && game.black?.id === id) {
+    game.black.connected = false;
+    game.black.disconnectedOn = Date.now();
+  } else if (game.white && game.white?.id === id) {
+    game.white.connected = false;
+    game.white.disconnectedOn = Date.now();
   }
 
-  // Notify remaining players
-  io.to(game.code).emit("updateLobby", game);
-  await this.leave(code || Array.from(this.rooms)[1]);
+  const sockets = await io.in(game.code as string).fetchSockets();
+
+  if (sockets.length <= 0 || (reason === undefined && sockets.length <= 1)) {
+    if (game.timeout) clearTimeout(game.timeout);
+
+    let timeout = 1000 * 60; // 1 minute
+    if (game.pgn) {
+      timeout *= 20; // 20 minutes if game has started
+    }
+    game.timeout = Number(
+      setTimeout(() => {
+        activeGames.delete(game.code);
+      }, timeout)
+    );
+  } else {
+    await this.leave(code || Array.from(this.rooms)[1]);
+  }
+  io.to(game.code as string).emit("updateLobby", game);
 }
 
 export async function claimAbandoned(this: Socket, type: "win" | "draw") {
@@ -263,7 +261,6 @@ export async function joinAsPlayer(this: Socket) {
     if (!game) return;
 
     const { id, name } = getUserFromSession(this);
-
     const observer = game.observers?.find((o) => o.id === id);
 
     const asPlayer = (side: "black" | "white") => {
@@ -293,7 +290,6 @@ export async function abort(this: Socket) {
   if (!game) return;
 
   game.endReason = "aborted";
-  game.status = "ended";
 
   deleteGameByCode(this);
   io.to(game.code).emit("updateLobby", game);
@@ -384,16 +380,19 @@ export async function rematch(this: Socket, lastGame?: Game) {
       pgn: "",
       stake: lastGame.stake,
       timeControl: lastGame.timeControl,
-      status: "started",
       activePlayer: "white",
       startedAt: Date.now(),
       white: {
-        ...lastGame.black,
-        connected: true,
+        id: lastGame.black.id,
+        name: lastGame.black.name,
+        connected: false,
+        disconnectedOn: Date.now(),
       },
       black: {
-        ...lastGame.white,
-        connected: true,
+        id: lastGame.white.id,
+        name: lastGame.white.name,
+        connected: false,
+        disconnectedOn: Date.now(),
       },
       timer: {
         white: lastGame.timeControl * 60 * 1000, // Convert minutes to ms

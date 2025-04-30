@@ -107,7 +107,6 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
     pgn: "",
     stake: amount,
     timeControl,
-    status: "started",
     activePlayer: "white",
     timer: {
       white: timeControl * 60 * 1000, // Convert minutes to ms

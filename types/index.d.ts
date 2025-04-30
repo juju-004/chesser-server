@@ -10,7 +10,6 @@ export interface Game {
   white?: User;
   black?: User;
   activePlayer?: "white" | "black";
-  status?: "started" | "inPlay" | "ended";
   winner?: "white" | "black" | "draw";
   chat: Message[];
   endReason?:

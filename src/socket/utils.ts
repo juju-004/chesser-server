@@ -32,7 +32,6 @@ export const gameOver = async ({
   winnerSide,
 }: GameOverProps) => {
   game.winner = winnerSide || "draw";
-  game.status = "ended";
 
   const result = await GameService.save(game);
   if (game.timeout) clearTimeout(game.timeout);
