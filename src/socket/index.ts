@@ -16,6 +16,8 @@ import {
   rematch,
 } from "./game.socket.js";
 
+import { onlineUsers } from "./socketState.js"; // adjust path
+
 const socketConnect = (socket: Socket) => {
   const req = socket.request;
 
@@ -29,7 +31,19 @@ const socketConnect = (socket: Socket) => {
     });
   });
 
-  socket.on("disconnect", leaveLobby);
+  const userId = req.session?.user?.id as string; // adjust depending on your session structure
+  if (userId) {
+    onlineUsers.set(userId, socket.id);
+    console.log(`🔌 ${userId} connected`);
+  }
+
+  socket.on("disconnect", (reason, code) => {
+    if (userId) {
+      onlineUsers.delete(userId);
+      console.log(`❌ ${userId} disconnected`);
+    }
+    code && leaveLobby.call(socket, reason, code);
+  });
 
   socket.on("joinLobby", joinLobby);
   socket.on("leaveLobby", leaveLobby);

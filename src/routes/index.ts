@@ -7,7 +7,7 @@ import users from "./users.route.js";
 const router = Router();
 
 router.use("/games", games);
+router.use("/user", users);
 router.use("/auth", auth);
-router.use("/users", users);
 
 export default router;

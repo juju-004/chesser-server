@@ -49,6 +49,8 @@ export const getGames = async (req: Request, res: Response) => {
 
 export const getActiveGame = asyncHandler(
   async (req: Request, res: Response) => {
+    console.log(req.session.user);
+
     if (!req.params || !req.params.code) {
       throw Error("Invalid code");
     }
@@ -135,4 +137,8 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
 
   // Respond with the game code
   res.status(201).json({ code: game.code });
+});
+
+export const ggggg = asyncHandler(async (req: Request, res: Response) => {
+  console.log;
 });

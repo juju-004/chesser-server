@@ -10,14 +10,16 @@ import {
   isDateGreaterOrLessThanADay,
 } from "../db/helper.js";
 import { sendEmail } from "../db/sendMail.js";
-import { UserModel } from "../db/index.js";
+import { GameModel, UserModel } from "../db/index.js";
+import { onlineUsers } from "../socket/socketState.js";
+import mongoose from "mongoose";
 
 export const getCurrentSession = asyncHandler(
   async (req: Request, res: Response) => {
     if (req.session.user) {
       res.status(200).json(req.session.user);
     } else {
-      res.status(204).end();
+      res.status(404).end();
     }
   }
 );
@@ -182,45 +184,11 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     throw new Error("Invalid  or password.");
   }
 
-  // const publicUser = {
-  //     id: users[0].id,
-  //     name: users[0].name
-  // };
-
-  // if (req.session.user?.id && typeof req.session.user.id === "string") {
-  //     const game = activeGames.find(
-  //         (g) =>
-  //             g.white?.id === req.session.user.id ||
-  //             g.black?.id === req.session.user.id ||
-  //             g.observers?.find((o) => o.id === req.session.user.id)
-  //     );
-  //     if (game) {
-  //         if (game.host?.id === req.session.user.id) {
-  //             game.host = publicUser;
-  //         }
-  //         if (game.white && game.white?.id === req.session.user.id) {
-  //             game.white = publicUser;
-  //         } else if (game.black && game.black?.id === req.session.user.id) {
-  //             game.black = publicUser;
-  //         } else {
-  //             const observer = game.observers?.find((o) => o.id === req.session.user.id);
-  //             if (observer) {
-  //                 observer.id = publicUser.id;
-  //                 observer.name = publicUser.name;
-  //             }
-  //         }
-  //         io.to(game.code as string).emit("receivedLatestGame", game);
-  //     }
-  // }
-
   if (users[0].verified) {
     req.session.user = {
       id: users[0].id.toString(),
       name: users[0].name,
       email: users[0].email,
-      wins: users[0].wins,
-      losses: users[0].losses,
-      draws: users[0].draws,
     };
     req.session.save(() => {
       res.status(200).json(req.session.user);
@@ -240,88 +208,6 @@ export const updateUser = async (req: Request, res: Response) => {
     console.log(err);
     res.status(500).end();
   }
-  // try {
-  //     if (!req.session.user?.id || typeof req.session.user.id === "string") {
-  //         res.status(403).end();
-  //         return;
-  //     }
-
-  //     if (!req.body.name && !req.body.email && !req.body.password) {
-  //         res.status(400).end();
-  //         return;
-  //     }
-
-  //     const name = xss(req.body.name || req.session.user.name);
-  //     const pattern = /^[A-Za-z0-9]+$/;
-  //     if (!pattern.test(name)) {
-  //         res.status(400).end();
-  //         return;
-  //     }
-
-  //     const email = xss(req.body.email || req.session.user.email);
-  //     const compareEmail = email || name;
-
-  //     const duplicateUsers = await UserModel.find({ $or: [{ name }, { email: compareEmail }] });
-  //     if (
-  //         duplicateUsers &&
-  //         duplicateUsers.length &&
-  //         duplicateUsers[0].id !== req.session.user.id
-  //     ) {
-  //         const dupl = duplicateUsers[0].name === name ? "Username" : "Email";
-  //         res.status(409).json({ message: `${dupl} is already in use.` });
-  //         return;
-  //     }
-
-  //     let password: string | undefined = undefined;
-  //     if (req.body.password) {
-  //         password = await hash(req.body.password);
-  //     }
-
-  //     duplicateUsers
-
-  //     const updatedUser = await UserModel.update(req.session.user.id, { name, email, password });
-
-  //     if (!updatedUser) {
-  //         throw new Error("Failed to update user");
-  //     }
-
-  //     const publicUser = {
-  //         id: updatedUser.id,
-  //         name: updatedUser.name
-  //     };
-
-  //     const game = activeGames.find(
-  //         (g) =>
-  //             g.white?.id === req.session.user.id ||
-  //             g.black?.id === req.session.user.id ||
-  //             g.observers?.find((o) => o.id === req.session.user.id)
-  //     );
-  //     if (game) {
-  //         if (game.host?.id === req.session.user.id) {
-  //             game.host = publicUser;
-  //         }
-  //         if (game.white && game.white?.id === req.session.user.id) {
-  //             game.white = publicUser;
-  //         } else if (game.black && game.black?.id === req.session.user.id) {
-  //             game.black = publicUser;
-  //         } else {
-  //             const observer = game.observers?.find((o) => o.id === req.session.user.id);
-  //             if (observer) {
-  //                 observer.id = publicUser.id;
-  //                 observer.name = publicUser.name;
-  //             }
-  //         }
-  //         io.to(game.code as string).emit("receivedLatestGame", game);
-  //     }
-
-  //     req.session.user = updatedUser;
-  //     req.session.save(() => {
-  //         res.status(200).json(req.session.user);
-  //     });
-  // } catch (err: unknown) {
-  //     console.log(err);
-  //     res.status(500).end();
-  // }
 };
 
 export const forgotPassEmailSend = asyncHandler(
@@ -350,8 +236,6 @@ export const forgotPassEmailSend = asyncHandler(
     const token = generateRandomSequence();
 
     await sendEmail(email, `${token}-${user[0]?.name}`, true);
-
-    // console.log(`${token}-${user[0]?.name}`);
 
     await UserModel.findByIdAndUpdate(user[0].id, {
       $set: {
@@ -397,6 +281,8 @@ export const forgotPassEmailVerification = asyncHandler(
 
 export const getWallet = async (req: Request, res: Response) => {
   try {
+    console.log(req.session.user, "wall");
+
     if (!req.session.user) {
       res.status(404).end();
       return;
@@ -414,6 +300,59 @@ export const getWallet = async (req: Request, res: Response) => {
     }
 
     res.status(200).json({ wallet: users[0].wallet });
+  } catch (err: unknown) {
+    console.log(err);
+    res.status(500).end();
+  }
+};
+
+export const getUserProfile = async (req: Request, res: Response) => {
+  try {
+    const name = xss(req.params.name); // Sanitize the input to prevent XSS
+
+    console.log(name, "ule", req.session);
+
+    const user = await UserModel.findOne({ name });
+    if (!user) throw new Error("User not found");
+
+    const gameCount = await GameModel.countDocuments({
+      $or: [{ white: user.id }, { black: user.id }],
+    });
+
+    // Construct the public profile object
+    const publicUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      wins: user.wins,
+      losses: user.losses,
+      draws: user.draws,
+      games: gameCount,
+      online: undefined,
+      isFriend: undefined,
+      isBlocked: undefined,
+    };
+
+    console.log(req.session, req.session?.user?.id === user.id);
+    console.log("yse y");
+
+    if (req.session?.user?.id && req.session?.user?.id !== user.id) {
+      console.log("yse yse yse");
+
+      const reqUser = await UserModel.findById(req.session?.user?.id);
+      const userObjectId = new mongoose.Types.ObjectId(user.id as string);
+
+      publicUser.online = onlineUsers.has(user.id);
+      publicUser.isFriend = reqUser.friends.some((oid) =>
+        oid.equals(userObjectId)
+      );
+      publicUser.isBlocked = reqUser.blocked.some((oid) =>
+        oid.equals(userObjectId)
+      );
+    }
+
+    // Send the public user profile along with recent games
+    res.status(200).json(publicUser);
   } catch (err: unknown) {
     console.log(err);
     res.status(500).end();

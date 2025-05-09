@@ -26,6 +26,8 @@ const userSchema = new mongoose.Schema(
     token: { type: String },
     wallet: { type: Number, default: 0 },
     forgotPassPassword: { type: String },
+    friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    blocked: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
@@ -38,6 +40,7 @@ const gameSchema = new mongoose.Schema(
     code: { type: String, maxlength: 7 },
     pgn: { type: String },
     timeControl: { type: Number },
+    stake: { type: Number },
     timer: {
       white: { type: Number }, // in milliseconds
       black: { type: Number }, // in milliseconds
