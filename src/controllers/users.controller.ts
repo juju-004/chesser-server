@@ -11,8 +11,6 @@ export const getUserProfile = asyncHandler(
   async (req: Request, res: Response) => {
     const name = xss(req.params.name); // Sanitize the input to prevent XSS
 
-    console.log(name, "uprofile", req.session);
-
     const user = await UserModel.findOne({ name });
     if (!user) throw new Error("User not found");
 
@@ -20,7 +18,6 @@ export const getUserProfile = asyncHandler(
       $or: [{ white: user.id }, { black: user.id }],
     });
 
-    // Construct the public profile object
     const publicUser = {
       id: user.id,
       name: user.name,
@@ -34,12 +31,7 @@ export const getUserProfile = asyncHandler(
       isBlocked: undefined,
     };
 
-    console.log(req.session, req.session?.user?.id === user.id);
-    console.log("yse y");
-
     if (req.session?.user?.id && req.session?.user?.id !== user.id) {
-      console.log("yse yse yse");
-
       const reqUser = await UserModel.findById(req.session?.user?.id);
       const userObjectId = new mongoose.Types.ObjectId(user.id as string);
 
@@ -109,7 +101,7 @@ export const addFriend = asyncHandler(async (req: Request, res: Response) => {
   user.friends.push(friendId);
   await user.save();
 
-  res.status(201).json({ isFriend: true });
+  res.status(200).json({ isFriend: true });
 });
 
 export const removeFriend = asyncHandler(

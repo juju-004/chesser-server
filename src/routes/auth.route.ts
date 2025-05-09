@@ -12,8 +12,6 @@ router
 router.route("/getuser").get(controller.getCurrentSession);
 // create or update guest sessions
 
-router.route("/user/:name").get(controller.getUserProfile);
-
 router.route("/verifymail").post(controller.emailVerification);
 router.route("/resendmail").post(controller.resendMail);
 

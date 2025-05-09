@@ -10,9 +10,7 @@ import {
   isDateGreaterOrLessThanADay,
 } from "../db/helper.js";
 import { sendEmail } from "../db/sendMail.js";
-import { GameModel, UserModel } from "../db/index.js";
-import { onlineUsers } from "../socket/socketState.js";
-import mongoose from "mongoose";
+import { UserModel } from "../db/index.js";
 
 export const getCurrentSession = asyncHandler(
   async (req: Request, res: Response) => {
@@ -281,8 +279,6 @@ export const forgotPassEmailVerification = asyncHandler(
 
 export const getWallet = async (req: Request, res: Response) => {
   try {
-    console.log(req.session.user, "wall");
-
     if (!req.session.user) {
       res.status(404).end();
       return;
@@ -300,59 +296,6 @@ export const getWallet = async (req: Request, res: Response) => {
     }
 
     res.status(200).json({ wallet: users[0].wallet });
-  } catch (err: unknown) {
-    console.log(err);
-    res.status(500).end();
-  }
-};
-
-export const getUserProfile = async (req: Request, res: Response) => {
-  try {
-    const name = xss(req.params.name); // Sanitize the input to prevent XSS
-
-    console.log(name, "ule", req.session);
-
-    const user = await UserModel.findOne({ name });
-    if (!user) throw new Error("User not found");
-
-    const gameCount = await GameModel.countDocuments({
-      $or: [{ white: user.id }, { black: user.id }],
-    });
-
-    // Construct the public profile object
-    const publicUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      wins: user.wins,
-      losses: user.losses,
-      draws: user.draws,
-      games: gameCount,
-      online: undefined,
-      isFriend: undefined,
-      isBlocked: undefined,
-    };
-
-    console.log(req.session, req.session?.user?.id === user.id);
-    console.log("yse y");
-
-    if (req.session?.user?.id && req.session?.user?.id !== user.id) {
-      console.log("yse yse yse");
-
-      const reqUser = await UserModel.findById(req.session?.user?.id);
-      const userObjectId = new mongoose.Types.ObjectId(user.id as string);
-
-      publicUser.online = onlineUsers.has(user.id);
-      publicUser.isFriend = reqUser.friends.some((oid) =>
-        oid.equals(userObjectId)
-      );
-      publicUser.isBlocked = reqUser.blocked.some((oid) =>
-        oid.equals(userObjectId)
-      );
-    }
-
-    // Send the public user profile along with recent games
-    res.status(200).json(publicUser);
   } catch (err: unknown) {
     console.log(err);
     res.status(500).end();
