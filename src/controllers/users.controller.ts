@@ -84,6 +84,23 @@ export const getUserFriends = asyncHandler(
   }
 );
 
+export const getPlayersByName = asyncHandler(
+  async (req: Request, res: Response) => {
+    const name = xss(req.params.name); // Sanitize the input to prevent XSS
+
+    const users = await UserModel.find({
+      name: { $regex: `^${name}`, $options: "i" },
+    });
+
+    const usersWithStatus = users.map((user) => ({
+      name: user.name,
+      online: onlineUsers.has(user._id.toString()),
+    }));
+
+    res.status(200).json(usersWithStatus);
+  }
+);
+
 export const addFriend = asyncHandler(async (req: Request, res: Response) => {
   const id = req.session?.user?.id;
   if (!id) throw new Error("Invalid Request");

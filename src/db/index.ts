@@ -32,6 +32,12 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+userSchema.virtual("transactions", {
+  ref: "Transaction", // the model to use
+  localField: "_id", // the field on the user
+  foreignField: "user", // the field on the transaction that refers to user
+});
+
 const gameSchema = new mongoose.Schema(
   {
     id: { type: Number },
@@ -75,6 +81,24 @@ const gameSchema = new mongoose.Schema(
   }
 );
 
+const TransactionSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    amount: Number,
+    reference: String,
+    status: String,
+    channel: String,
+    gateway_response: String,
+    paid_at: Date,
+    verified: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
 // Create models
 export const UserModel = mongoose.model("User", userSchema);
 export const GameModel = mongoose.model("Game", gameSchema);
+export const TransactionModel = mongoose.model(
+  "Transaction",
+  TransactionSchema
+);

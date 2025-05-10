@@ -7,6 +7,8 @@ router.route("/:name").get(controller.getUserProfile);
 
 router.route("/:name/games").get(controller.getUserGames);
 
+router.route("/players/:name").get(controller.getPlayersByName);
+
 router.route("/:name/friends").get(controller.getUserFriends);
 
 router.route("/friend").post(controller.addFriend);
