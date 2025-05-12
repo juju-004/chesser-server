@@ -60,7 +60,10 @@ export const getUserGames = asyncHandler(
       $or: [{ white: user.id }, { black: user.id }],
     })
       .limit(30)
-      .populate("white black", "name");
+      .populate("white black", "name")
+      .sort({
+        startedAt: -1,
+      });
 
     res.status(200).json(games);
   }

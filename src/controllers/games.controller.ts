@@ -138,7 +138,3 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
   // Respond with the game code
   res.status(201).json({ code: game.code });
 });
-
-export const ggggg = asyncHandler(async (req: Request, res: Response) => {
-  console.log;
-});
