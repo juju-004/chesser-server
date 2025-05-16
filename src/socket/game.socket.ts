@@ -2,7 +2,7 @@ import type { Game, User } from "../../types/index.js";
 import { Chess } from "chess.js";
 import type { DisconnectReason, Socket } from "socket.io";
 
-import { activeGames } from "../db/services/game.js";
+import { activeGames } from "../state.js";
 import { io } from "../server.js";
 import {
   deleteGameByCode,
@@ -16,14 +16,10 @@ import { nanoid } from "nanoid";
 // TODO: clean up
 
 export async function joinLobby(this: Socket, gameCode: string) {
-  console.log("yes", gameCode);
-
   const game = activeGames.get(gameCode);
   if (!game) return;
 
   const { id, name } = getUserFromSession(this);
-
-  console.log(id, name);
 
   const updateUser = (player: User | undefined) => {
     if (player?.id === id) {

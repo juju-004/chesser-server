@@ -9,7 +9,7 @@ export async function sendEmail(
   forgotPass: boolean
 ) {
   const link = forgotPass
-    ? `${process.env.CLIENT_URL}/auth/forgotpassword/${hashedtoken}`
+    ? `${process.env.CLIENT_URL}/auth/${hashedtoken}`
     : `${process.env.CLIENT_URL}/auth/${hashedtoken}`;
 
   const message = forgotPass
@@ -241,7 +241,7 @@ export async function sendEmail(
   const response = await notify.sendEmail({
     to: email,
     subject: forgotPass ? "Password Reset" : "Verify your email",
-    name: "John Doe",
+    name: "Chesser",
     message,
   });
   return response;

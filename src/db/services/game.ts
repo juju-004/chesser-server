@@ -1,8 +1,6 @@
 import { Game } from "../../../types/index.js";
 import { GameModel, UserModel } from "../index.js"; // Import models from index.js
 
-export const activeGames: Map<string, Game> = new Map();
-
 export const save = async (game: Game) => {
   try {
     // Create game document in MongoDB
@@ -69,111 +67,28 @@ export const save = async (game: Game) => {
   }
 };
 
-export const findById = async (id: string) => {
-  try {
-    const game = await GameModel.findById(id).populate(
-      "whiteId blackId",
-      "name"
-    );
-
-    if (game) {
-      return null;
-      // return {
-      //   id: game._id.toString(),
-      //   winner: game.winner,
-      //   endReason: game.endReason,
-      //   pgn: game.pgn,
-      //   white: { id: game.whiteId.toString(), name: game.whiteName },
-      //   black: { id: game.blackId.toString(), name: game.blackName },
-      //   startedAt: game.startedAt.getTime(),
-      //   endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
-      // };
-    } else {
-      return null;
-    }
-  } catch (err: unknown) {
-    console.log(err);
-    return null;
-  }
-};
-// export const findByCode = async (id: string) => {
-//     try {
-//          const game = await GameModel
-
-//         if (game) {
-//             return {
-//                 id: game._id.toString(),
-//                 winner: game.winner,
-//                 endReason: game.endReason,
-//                 pgn: game.pgn,
-//                 white: { id: game.whiteId.toString(), name: game.whiteName },
-//                 black: { id: game.blackId.toString(), name: game.blackName },
-//                 startedAt: game.startedAt.getTime(),
-//                 endedAt: game.endedAt ? game.endedAt.getTime() : undefined
-//             };
-//         } else {
-//             return null;
-//         }
-//     } catch (err: unknown) {
-//         console.log(err);
-//         return null;
-//     }
-// };
-
 export const findByUserId = async (id: string, limit = 10) => {
-  try {
-    const games = await GameModel.find({
-      $or: [{ whiteId: id }, { blackId: id }],
-    })
-      .limit(limit)
-      .populate("whiteId blackId", "name");
+  const games = await GameModel.find({
+    $or: [{ whiteId: id }, { blackId: id }],
+  })
+    .limit(limit)
+    .populate("whiteId blackId", "name");
 
-    return games.map((game) => ({
-      id: game._id.toString(),
-      winner: game.winner,
-      endReason: game.endReason,
-      pgn: game.pgn,
-      // white: { id: game.whiteId.toString(), name: game.whiteName },
-      // black: { id: game.blackId.toString(), name: game.blackName },
-      startedAt: game.startedAt.getTime(),
-      endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
-    }));
-  } catch (err: unknown) {
-    console.log(err);
-    return null;
-  }
-};
-
-export const remove = async (id: string) => {
-  try {
-    const game = await GameModel.findByIdAndDelete(id);
-
-    if (game) {
-      return null;
-      // return {
-      //   id: game._id.toString(),
-      //   winner: game.winner,
-      //   endReason: game.endReason,
-      //   pgn: game.pgn,
-      //   white: { id: game.whiteId.toString(), name: game.whiteName },
-      //   black: { id: game.blackId.toString(), name: game.blackName },
-      //   startedAt: game.startedAt.getTime(),
-      //   endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
-      // };
-    } else {
-      return null;
-    }
-  } catch (err: unknown) {
-    console.log(err);
-    return null;
-  }
+  return games.map((game) => ({
+    id: game._id.toString(),
+    winner: game.winner,
+    endReason: game.endReason,
+    pgn: game.pgn,
+    // white: { id: game.whiteId.toString(), name: game.whiteName },
+    // black: { id: game.blackId.toString(), name: game.blackName },
+    startedAt: game.startedAt.getTime(),
+    endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
+  }));
 };
 
 const GameService = {
   findByUserId,
-  findById,
   save,
-  remove,
 };
 
 export default GameService;

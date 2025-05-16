@@ -11,10 +11,8 @@ router.route("/players/:name").get(controller.getPlayersByName);
 
 router.route("/:name/friends").get(controller.getUserFriends);
 
-router.route("/friend").post(controller.addFriend);
+router.route("/sendfriendreq").post(controller.sendFriendReq);
+router.route("/acceptfriendreq").post(controller.acceptFriendReq);
 router.route("/friends/:friendId").delete(controller.removeFriend);
-
-router.route("/block").post(controller.blockUser);
-router.route("/blocked/:userId").delete(controller.unBlockUser);
 
 export default router;

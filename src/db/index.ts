@@ -27,7 +27,6 @@ const userSchema = new mongoose.Schema(
     wallet: { type: Number, default: 0 },
     forgotPassPassword: { type: String },
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    blocked: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

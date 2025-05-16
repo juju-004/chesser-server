@@ -31,7 +31,7 @@ export const initPayment = asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.json({ authorization_url: response.data.data.authorization_url });
-});
+}, true);
 
 export const verifyTransaction = asyncHandler(
   async (req: Request, res: Response) => {
@@ -98,7 +98,8 @@ export const verifyTransaction = asyncHandler(
     }
 
     throw Error("Invalid Request");
-  }
+  },
+  true
 );
 
 export const getTransactionHistory = asyncHandler(
@@ -111,5 +112,6 @@ export const getTransactionHistory = asyncHandler(
     });
 
     res.json(transactions);
-  }
+  },
+  true
 );

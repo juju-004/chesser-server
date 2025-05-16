@@ -16,7 +16,7 @@ import {
   rematch,
 } from "./game.socket.js";
 
-import { onlineUsers } from "./socketState.js"; // adjust path
+import { onlineUsers } from "../state.js"; // adjust path
 
 const socketConnect = (socket: Socket) => {
   const req = socket.request;

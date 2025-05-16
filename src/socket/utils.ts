@@ -1,7 +1,8 @@
 import { Socket } from "socket.io";
-import GameService, { activeGames } from "../db/services/game.js";
+import GameService from "../db/services/game.js";
 import { Game } from "../../types/index.js";
 import { io } from "../server.js";
+import { activeGames } from "../state.js";
 
 interface GameOverProps {
   game: Game;
