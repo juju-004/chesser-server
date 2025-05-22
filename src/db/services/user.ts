@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import type { User } from "../../../types/index.js";
 import { UserModel } from "../index.js";
 
@@ -39,6 +40,34 @@ export const findById = async (id: string) => {
     friends: user.friends,
     updatedAt: user.updatedAt,
   };
+};
+
+export const updateUserFriend = async (id: string, friendId: string) => {
+  if (!id) throw Error("Invalid req");
+
+  const user = await UserModel.findByIdAndUpdate(
+    id,
+    {
+      $addToSet: {
+        friends: friendId,
+      },
+    },
+    { new: true }
+  );
+
+  if (!user) throw Error("No user found");
+};
+export const removeUserFriend = async (id: string, friendId: string) => {
+  if (!id) throw Error("Invalid req");
+
+  const user = await UserModel.findByIdAndUpdate(
+    id,
+    { $pull: { friends: friendId } },
+    { new: true }
+  );
+
+  if (!user) throw Error("No user found");
+  return user;
 };
 
 export const findByNameOrEmail = async (
@@ -97,6 +126,20 @@ export const update = async (
     name: updated.name,
     email: updated.email,
   };
+};
+
+export const isFriend = async (id: string, friendId: string) => {
+  if (!id || !friendId) return null;
+
+  const user = await UserModel.findById(id);
+
+  if (!user) throw Error("User not found");
+
+  const isFriend = user.friends.some((f: mongoose.Types.ObjectId) =>
+    f.equals(friendId)
+  );
+
+  return isFriend;
 };
 
 const UserService = {

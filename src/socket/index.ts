@@ -16,7 +16,9 @@ import {
   rematch,
 } from "./game.socket.js";
 
-import { onlineUsers } from "../state.js"; // adjust path
+import { addOnlineUser, getSocketId, onlineUsers } from "../state.js"; // adjust path
+import { FriendRequest, UserModel } from "../db/index.js";
+import { isFriend, updateUserFriend } from "../db/services/user.js";
 
 const socketConnect = (socket: Socket) => {
   const req = socket.request;
@@ -33,7 +35,7 @@ const socketConnect = (socket: Socket) => {
 
   const userId = req.session?.user?.id as string; // adjust depending on your session structure
   if (userId) {
-    onlineUsers.set(userId, socket.id);
+    addOnlineUser(userId, socket.id);
     console.log(`🔌 ${userId} connected`);
   }
 
@@ -43,6 +45,59 @@ const socketConnect = (socket: Socket) => {
       console.log(`❌ ${userId} disconnected`);
     }
     code && leaveLobby.call(socket, reason, code);
+  });
+
+  socket.on("send_friend_request", async ({ from, to }) => {
+    try {
+      const isUserFriend = await isFriend(from, to);
+
+      if (isUserFriend || isUserFriend === null) {
+        return;
+      }
+
+      const request = await FriendRequest.findOneAndUpdate(
+        { from, to, status: "pending" },
+        {},
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).populate("from to", "name");
+
+      const receiverSocketId = getSocketId(to);
+
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("friend_request_received", request);
+      }
+    } catch (error) {
+      socket.emit("error", { message: "An error occurred" });
+    }
+  });
+
+  socket.on("respond_to_request", async ({ from, to, accept }) => {
+    try {
+      const request = await FriendRequest.findOne({
+        from,
+        to,
+        status: "pending",
+      }).populate("from to", "name");
+      if (!request) return;
+
+      if (accept) {
+        await updateUserFriend(from, to);
+        await updateUserFriend(to, from);
+
+        request.status = "accepted";
+      } else {
+        request.status = "rejected";
+      }
+
+      await request.save();
+      const senderSocketId = getSocketId(from);
+
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("friend_request_responded", request);
+      }
+    } catch (error) {
+      socket.emit("error", { message: "An error occurred" });
+    }
   });
 
   socket.on("joinLobby", joinLobby);

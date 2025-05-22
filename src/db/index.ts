@@ -94,7 +94,23 @@ const TransactionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Create models
+const friendRequestSchema = new mongoose.Schema(
+  {
+    from: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    to: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    status: {
+      type: String,
+      enum: ["pending", "accepted", "rejected"],
+      default: "pending",
+    },
+  },
+  { timestamps: true }
+);
+
+export const FriendRequest = mongoose.model(
+  "FriendRequest",
+  friendRequestSchema
+);
 export const UserModel = mongoose.model("User", userSchema);
 export const GameModel = mongoose.model("Game", gameSchema);
 export const TransactionModel = mongoose.model(

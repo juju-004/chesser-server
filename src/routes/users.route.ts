@@ -3,16 +3,14 @@ import * as controller from "../controllers/users.controller.js";
 
 const router = Router();
 
-router.route("/:name").get(controller.getUserProfile);
-
-router.route("/:name/games").get(controller.getUserGames);
+router.route("/friends/:friendId").delete(controller.unFriend);
 
 router.route("/players/:name").get(controller.getPlayersByName);
 
-router.route("/:name/friends").get(controller.getUserFriends);
+router.route("/data/:name").get(controller.getUserData);
 
-router.route("/sendfriendreq").post(controller.sendFriendReq);
-router.route("/acceptfriendreq").post(controller.acceptFriendReq);
-router.route("/friends/:friendId").delete(controller.removeFriend);
+router.route("/:name").get(controller.getUserProfile);
+router.route("/:name/games").get(controller.getUserGames);
+router.route("/:name/friends").get(controller.getUserFriends);
 
 export default router;

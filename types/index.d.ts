@@ -53,3 +53,9 @@ export interface Message {
   author: User;
   message: string;
 }
+
+export interface FriendRequest {
+  from: string; // sender ID
+  to: string; // receiver ID
+  createdAt?: string;
+}

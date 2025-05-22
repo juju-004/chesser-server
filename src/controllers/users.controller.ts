@@ -1,12 +1,16 @@
 import type { Request, Response } from "express";
 import xss from "xss";
 
-import { GameModel } from "../db/index.js";
+import { FriendRequest, GameModel } from "../db/index.js";
 import { UserModel } from "../db/index.js";
 import { onlineUsers } from "../state.js";
 import { asyncHandler } from "../db/helper.js";
 import mongoose from "mongoose";
-import { findById, findByNameOrEmail } from "../db/services/user.js";
+import {
+  findById,
+  findByNameOrEmail,
+  removeUserFriend,
+} from "../db/services/user.js";
 
 export const getUserProfile = asyncHandler(
   async (req: Request, res: Response) => {
@@ -46,6 +50,28 @@ export const getUserProfile = asyncHandler(
   },
   true
 );
+
+export const getUserData = async (req: Request, res: Response) => {
+  try {
+    const name = xss(req.params.name); // Sanitize the input to prevent XSS
+
+    const user = await findByNameOrEmail({ name });
+
+    const publicUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      wins: user.wins,
+      losses: user.losses,
+      draws: user.draws,
+    };
+
+    // Send the public user profile along with recent games
+    res.status(200).json(publicUser);
+  } catch (error) {
+    res.status(500).end();
+  }
+};
 
 export const getUserGames = asyncHandler(
   async (req: Request, res: Response) => {
@@ -104,71 +130,29 @@ export const getPlayersByName = asyncHandler(
   true
 );
 
-export const sendFriendReq = asyncHandler(
+export const getUserNotifications = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.session?.user?.id;
-    if (!id) throw new Error("Invalid Request");
+    const requests = await FriendRequest.find({
+      $or: [
+        { to: id, status: "pending" },
+        { from: id, status: { $ne: "pending" } },
+      ],
+    }).populate("from to", "name");
 
-    const friendId = req.body.friendId;
-
-    const user = await UserModel.findById(id);
-    if (!user) throw new Error("User not found");
-
-    const alreadyFriends = user.friends.includes(friendId);
-    if (alreadyFriends) {
-      throw new Error("Already friends.");
-    }
-
-    user.friends.push(friendId);
-    await user.save();
-
-    res.status(200).json({ isFriend: true });
+    res.status(200).json(requests);
   },
   true
 );
 
-export const acceptFriendReq = asyncHandler(
-  async (req: Request, res: Response) => {
-    const id = req.session?.user?.id;
-    const friendId = xss(req.params.friendId);
+export const unFriend = asyncHandler(async (req: Request, res: Response) => {
+  const id = req.session?.user?.id;
+  const friendId = xss(req.params.friendId);
 
-    const user = await UserModel.findById(id);
-    if (!user) throw new Error("User not found");
+  if (!friendId) throw Error("Friend ID is required");
 
-    const friendIdAsObj = new mongoose.Types.ObjectId(friendId);
-    const alreadyFriends = user.friends.includes(friendIdAsObj);
+  await removeUserFriend(id as string, friendId);
+  await removeUserFriend(friendId, id as string);
 
-    if (!alreadyFriends) {
-      throw new Error("You are not friends with this user.");
-    }
-    user.friends = user.friends.filter((id) => id.toString() !== friendId);
-
-    await user.save();
-
-    res.status(200).json({ isFriend: false });
-  },
-  true
-);
-
-export const removeFriend = asyncHandler(
-  async (req: Request, res: Response) => {
-    const id = req.session?.user?.id;
-    const friendId = xss(req.params.friendId);
-
-    const user = await UserModel.findById(id);
-    if (!user) throw new Error("User not found");
-
-    const friendIdAsObj = new mongoose.Types.ObjectId(friendId);
-    const alreadyFriends = user.friends.includes(friendIdAsObj);
-
-    if (!alreadyFriends) {
-      throw new Error("You are not friends with this user.");
-    }
-    user.friends = user.friends.filter((id) => id.toString() !== friendId);
-
-    await user.save();
-
-    res.status(200).json({ isFriend: false });
-  },
-  true
-);
+  res.status(200).json({ message: `Unfriended user` });
+}, true);
