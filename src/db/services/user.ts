@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import type { User } from "../../../types/index.js";
 import { UserModel } from "../index.js";
 
@@ -24,11 +24,13 @@ export const create = async (user: User, token: string, password: string) => {
   }
 };
 
-export const findById = async (id: string) => {
+export const findById = async (id: string, populate = false) => {
   if (!id) throw Error("Invalid req");
 
   const user = await UserModel.findById(id);
   if (!user) throw Error("No user found");
+
+  if (populate) await user.populate("friends", "name");
 
   return {
     id: user._id,
@@ -142,11 +144,17 @@ export const isFriend = async (id: string, friendId: string) => {
   return isFriend;
 };
 
+export const getFriends = async (userId: string): Promise<string[]> => {
+  const user = await UserModel.findById(userId).select("friends"); // assumes user.friends is array of ObjectIds
+  return user?.friends?.map((id) => id.toString()) || [];
+};
+
 const UserService = {
   create,
   findById,
   findByNameOrEmail,
   update,
+  getFriends,
 };
 
 export default UserService;

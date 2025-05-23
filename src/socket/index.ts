@@ -1,4 +1,4 @@
-import type { Socket } from "socket.io";
+import type { Socket, Server } from "socket.io";
 
 import { io } from "../server.js";
 import {
@@ -18,7 +18,7 @@ import {
 
 import { addOnlineUser, getSocketId, onlineUsers } from "../state.js"; // adjust path
 import { FriendRequest, UserModel } from "../db/index.js";
-import { isFriend, updateUserFriend } from "../db/services/user.js";
+import { getFriends, isFriend, updateUserFriend } from "../db/services/user.js";
 
 const socketConnect = (socket: Socket) => {
   const req = socket.request;
@@ -36,16 +36,33 @@ const socketConnect = (socket: Socket) => {
   const userId = req.session?.user?.id as string; // adjust depending on your session structure
   if (userId) {
     addOnlineUser(userId, socket.id);
+    notifyFriends(userId, true);
+
     console.log(`🔌 ${userId} connected`);
   }
 
   socket.on("disconnect", (reason, code) => {
     if (userId) {
       onlineUsers.delete(userId);
+      notifyFriends(userId, false);
       console.log(`❌ ${userId} disconnected`);
     }
     code && leaveLobby.call(socket, reason, code);
   });
+
+  async function notifyFriends(userId: string, isOnline: boolean) {
+    const friends = await getFriends(userId); // should return friend user IDs
+
+    for (const friendId of friends) {
+      const friendSocketId = getSocketId(friendId.toString());
+      if (friendSocketId) {
+        io.to(friendSocketId).emit("friend_status_changed", {
+          userId,
+          isOnline,
+        });
+      }
+    }
+  }
 
   socket.on("send_friend_request", async ({ from, to }) => {
     try {
