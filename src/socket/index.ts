@@ -1,4 +1,4 @@
-import type { Socket, Server } from "socket.io";
+import type { Socket } from "socket.io";
 
 import { io } from "../server.js";
 import {
@@ -16,39 +16,30 @@ import {
   rematch,
 } from "./game.socket.js";
 
-import { addOnlineUser, getSocketId, onlineUsers } from "../state.js"; // adjust path
+import {
+  activeChallenges,
+  addOnlineUser,
+  ChallengeData,
+  getSocketId,
+  onlineUsers,
+} from "../state.js"; // adjust path
 import { FriendRequest, UserModel } from "../db/index.js";
-import { getFriends, isFriend, updateUserFriend } from "../db/services/user.js";
+import {
+  findById,
+  getFriends,
+  isFriend,
+  updateUserFriend,
+} from "../db/services/user.js";
+import { nanoid } from "nanoid";
+import { initGame, isValidGameParams } from "../db/services/game.js";
+import { Game } from "../../types/index.js";
+
+const socketError = (socket: Socket, err: string) => {
+  socket.emit("error", err);
+};
 
 const socketConnect = (socket: Socket) => {
   const req = socket.request;
-
-  socket.use((__, next) => {
-    req.session.reload((err) => {
-      if (err) {
-        socket.disconnect();
-      } else {
-        next();
-      }
-    });
-  });
-
-  const userId = req.session?.user?.id as string; // adjust depending on your session structure
-  if (userId) {
-    addOnlineUser(userId, socket.id);
-    notifyFriends(userId, true);
-
-    console.log(`🔌 ${userId} connected`);
-  }
-
-  socket.on("disconnect", (reason, code) => {
-    if (userId) {
-      onlineUsers.delete(userId);
-      notifyFriends(userId, false);
-      console.log(`❌ ${userId} disconnected`);
-    }
-    code && leaveLobby.call(socket, reason, code);
-  });
 
   async function notifyFriends(userId: string, isOnline: boolean) {
     const friends = await getFriends(userId); // should return friend user IDs
@@ -64,6 +55,130 @@ const socketConnect = (socket: Socket) => {
     }
   }
 
+  socket.use((__, next) => {
+    req.session.reload((err) => {
+      if (err) {
+        socket.disconnect();
+      } else {
+        next();
+      }
+    });
+  });
+
+  const userId = req.session?.user?.id as string; // adjust depending on your session structure
+  if (userId) {
+    addOnlineUser(userId, socket.id);
+    notifyFriends(userId, true);
+    console.log(`🔌 ${userId} connected`);
+  }
+
+  // Disconnect
+  socket.on("disconnect", () => {
+    if (userId) {
+      onlineUsers.delete(userId);
+      notifyFriends(userId, false);
+      console.log(`❌ ${userId} disconnected`);
+    }
+  });
+
+  // Challenge
+  socket.on("challenge:send", async ({ to, side, timeControl, amount }) => {
+    const id = nanoid();
+
+    const user = await findById(userId);
+
+    const err = isValidGameParams(amount, user.wallet, timeControl);
+    if (err) {
+      socketError(socket, err);
+      return;
+    }
+
+    const challenge: ChallengeData = {
+      from: {
+        id: userId,
+        name: req.session.user.name,
+      },
+      to,
+      side,
+      timeControl,
+      amount,
+    };
+
+    activeChallenges.set(id, challenge);
+    const targetSocket = getSocketId(to);
+
+    if (targetSocket)
+      io.to(targetSocket).emit("challenge:received", { id, ...challenge });
+  });
+  socket.on("challenge:accept", async ({ id }) => {
+    const challenge = activeChallenges.get(id);
+
+    const user = await findById(userId);
+
+    const err = isValidGameParams(
+      challenge.amount,
+      user.wallet,
+      challenge.timeControl
+    );
+    if (err) return socketError(socket, err);
+
+    if (!challenge && challenge.to !== userId) return;
+    const sender = {
+      id: challenge.from.id,
+      name: challenge.from.name,
+    };
+    const receiver = {
+      id: userId,
+      name: req.session.user.name,
+    };
+
+    const game: Partial<Game> = {
+      host: sender,
+      timeControl: challenge.timeControl,
+      stake: challenge.amount,
+    };
+
+    // Assign sides to the user based on input or randomly
+    if (challenge.side === "white") {
+      game.white = sender;
+      game.black = receiver;
+    } else if (challenge.side === "black") {
+      game.black = sender;
+      game.white = receiver;
+    } else {
+      if (Math.floor(Math.random() * 2) === 0) {
+        game.white = sender;
+        game.black = receiver;
+      } else {
+        game.black = sender;
+        game.white = receiver;
+      }
+    }
+
+    const nGame = initGame(game);
+
+    const receiverSocket = getSocketId(challenge.to);
+    const senderSocket = getSocketId(challenge.from.id as string);
+
+    if (receiverSocket && senderSocket) {
+      activeChallenges.delete(id);
+      io.to(senderSocket).emit("challenge:start", nGame.code);
+      io.to(receiverSocket).emit("challenge:start", nGame.code);
+    }
+  });
+  socket.on("challenge:decline", ({ id }) => {
+    const challenge = activeChallenges.get(id);
+    if (!challenge && challenge.to !== userId) return;
+
+    const sender = getSocketId(challenge.from.id as string);
+
+    if (sender) {
+      io.to(sender).emit("challenge:declined", { id });
+      activeChallenges.delete(id);
+    }
+  });
+
+  // Friend Requests
   socket.on("send_friend_request", async ({ from, to }) => {
     try {
       const isUserFriend = await isFriend(from, to);
@@ -84,10 +199,9 @@ const socketConnect = (socket: Socket) => {
         io.to(receiverSocketId).emit("friend_request_received", request);
       }
     } catch (error) {
-      socket.emit("error", { message: "An error occurred" });
+      socket.emit("error", "An error occurred");
     }
   });
-
   socket.on("respond_to_request", async ({ from, to, accept }) => {
     try {
       const request = await FriendRequest.findOne({
@@ -117,6 +231,7 @@ const socketConnect = (socket: Socket) => {
     }
   });
 
+  // Game Logic
   socket.on("joinLobby", joinLobby);
   socket.on("leaveLobby", leaveLobby);
 

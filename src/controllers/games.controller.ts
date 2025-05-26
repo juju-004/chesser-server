@@ -5,6 +5,8 @@ import { nanoid } from "nanoid";
 import { asyncHandler } from "../db/helper.js";
 import { GameModel, UserModel } from "../db/index.js";
 import { activeGames } from "../state.js";
+import { initGame, isValidGameParams } from "../db/services/game.js";
+import { findByNameOrEmail } from "../db/services/user.js";
 
 export const getGame = async (req: Request, res: Response) => {
   if (!req.params || !req.params.code) {
@@ -31,42 +33,22 @@ export const getGame = async (req: Request, res: Response) => {
 export const createGame = asyncHandler(async (req: Request, res: Response) => {
   const timeControl = parseFloat(req.body.timeControl);
   const amount = parseFloat(req.body.amount);
+  const name = req.session.user?.name;
 
-  const findUser = await UserModel.find({
-    $or: [{ name: req.session.user?.name }, { email: req.session.user?.name }],
-  });
+  const findUser = await findByNameOrEmail({ name });
 
-  if (isNaN(amount) || amount < 100) {
-    throw new Error("Invalid amount");
-  }
-
-  if (findUser[0]?.wallet < amount) {
-    throw new Error("Insufficient funds");
-  }
-
-  if (isNaN(timeControl) || timeControl < 1) {
-    throw new Error("Invalid time control");
-  }
+  const err = isValidGameParams(amount, findUser.wallet, timeControl);
+  if (err) throw Error(err);
 
   const user: User = {
     id: req.session.user.id,
-    name: req.session.user.name,
-    connected: false,
+    name,
   };
 
-  const game: Game = {
-    code: nanoid(6),
+  const game: Partial<Game> = {
     host: user,
-    pgn: "",
     stake: amount,
     timeControl,
-    activePlayer: "white",
-    timer: {
-      white: timeControl * 60 * 1000, // Convert minutes to ms
-      black: timeControl * 60 * 1000,
-      lastUpdate: Date.now(),
-    },
-    chat: [],
   };
 
   // Assign sides to the user based on input or randomly
@@ -83,9 +65,8 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // Save the game to active games
-  activeGames.set(game.code, game);
+  const mainGame = initGame(game);
 
   // Respond with the game code
-  res.status(201).json({ code: game.code });
+  res.status(201).json({ code: mainGame.code });
 }, true);

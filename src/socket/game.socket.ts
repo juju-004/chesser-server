@@ -1,7 +1,6 @@
 import type { Game, User } from "../../types/index.js";
 import { Chess } from "chess.js";
-import type { DisconnectReason, Socket } from "socket.io";
-
+import type { Socket } from "socket.io";
 import { activeGames } from "../state.js";
 import { io } from "../server.js";
 import {
@@ -11,12 +10,10 @@ import {
   getUpdatedTimer,
   getUserFromSession,
 } from "./utils.js";
-import { nanoid } from "nanoid";
+import { initGame } from "../db/services/game.js";
 
-// TODO: clean up
-
-export async function joinLobby(this: Socket, gameCode: string) {
-  const game = activeGames.get(gameCode);
+export async function joinLobby(this: Socket, code: string) {
+  const game = activeGames.get(code);
   if (!game) return;
 
   const { id, name } = getUserFromSession(this);
@@ -48,19 +45,16 @@ export async function joinLobby(this: Socket, gameCode: string) {
     game.timeout = undefined;
   }
 
-  await this.join(gameCode);
+  await this.join(code);
   io.to(game.code as string).emit("receivedLatestGame", game);
 }
 
-export async function leaveLobby(
-  this: Socket,
-  reason?: DisconnectReason,
-  code?: string
-) {
+export async function leaveLobby(this: Socket, code?: string) {
   if (this.rooms.size >= 3 && !code) {
     console.log(`leaveLobby: room size is ${this.rooms.size}, aborting...`);
     return;
   }
+  if (!code) return;
 
   const { id } = getUserFromSession(this);
   const game = Array.from(activeGames.values()).find(
@@ -91,7 +85,7 @@ export async function leaveLobby(
 
   const sockets = await io.in(game.code as string).fetchSockets();
 
-  if (sockets.length <= 0 || (reason === undefined && sockets.length <= 1)) {
+  if (sockets.length <= 1) {
     if (game.timeout) clearTimeout(game.timeout);
 
     let timeout = 1000 * 60; // 1 minute
@@ -374,38 +368,16 @@ export async function chat(
 
 export async function rematch(this: Socket, lastGame?: Game) {
   if (lastGame) {
-    const game: Game = {
-      code: nanoid(6),
+    const game: Partial<Game> = {
       host: lastGame.host,
-      pgn: "",
       stake: lastGame.stake,
       timeControl: lastGame.timeControl,
-      activePlayer: "white",
-      startedAt: Date.now(),
-      white: {
-        id: lastGame.black.id,
-        name: lastGame.black.name,
-        connected: false,
-        disconnectedOn: Date.now(),
-      },
-      black: {
-        id: lastGame.white.id,
-        name: lastGame.white.name,
-        connected: false,
-        disconnectedOn: Date.now(),
-      },
-      timer: {
-        white: lastGame.timeControl * 60 * 1000, // Convert minutes to ms
-        black: lastGame.timeControl * 60 * 1000,
-        lastUpdate: Date.now(),
-      },
-      chat: [],
+      white: lastGame.black,
+      black: lastGame.white,
     };
 
-    // Save the game to active games
-    activeGames.set(game.code, game);
-
-    io.to(Array.from(this.rooms)[1]).emit("newGameCode", game.code);
+    const mainGame = initGame(game);
+    io.to(Array.from(this.rooms)[1]).emit("newGameCode", mainGame.code);
   } else {
     this.to(Array.from(this.rooms)[1]).emit("rematch");
   }

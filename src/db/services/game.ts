@@ -1,5 +1,7 @@
+import { nanoid } from "nanoid";
 import { Game } from "../../../types/index.js";
 import { GameModel, UserModel } from "../index.js"; // Import models from index.js
+import { activeGames } from "../../state.js";
 
 export const save = async (game: Game) => {
   try {
@@ -84,6 +86,71 @@ export const findByUserId = async (id: string, limit = 10) => {
     startedAt: game.startedAt.getTime(),
     endedAt: game.endedAt ? game.endedAt.getTime() : undefined,
   }));
+};
+
+export const initGame = (game: Partial<Game>) => {
+  const newGame: Game = {
+    code: nanoid(6),
+    host: game.host,
+    pgn: "",
+    stake: game.stake,
+    timeControl: game.timeControl,
+    activePlayer: "white",
+    startedAt: Date.now(),
+    timer: {
+      white: game.timeControl * 60 * 1000, // Convert minutes to ms
+      black: game.timeControl * 60 * 1000,
+      lastUpdate: Date.now(),
+    },
+    chat: [],
+  };
+
+  if (game.white) {
+    newGame.white = {
+      ...game.white,
+      connected: false,
+      disconnectedOn: Date.now(),
+    };
+  }
+  if (game.black) {
+    newGame.black = {
+      ...game.black,
+      connected: false,
+      disconnectedOn: Date.now(),
+    };
+  }
+  if (game.host) {
+    newGame.host = {
+      ...game.host,
+      connected: false,
+      disconnectedOn: Date.now(),
+    };
+  }
+
+  // Save the game to active games
+  activeGames.set(newGame.code, newGame);
+
+  return newGame;
+};
+
+export const isValidGameParams = (
+  amount: number,
+  wallet: number,
+  time: number
+) => {
+  if (isNaN(amount) || amount < 100) {
+    return "Invalid amount";
+  }
+
+  if (wallet < amount) {
+    return "Insufficient funds";
+  }
+
+  if (isNaN(time) || time < 1) {
+    return "Invalid time control";
+  }
+
+  return false;
 };
 
 const GameService = {

@@ -36,6 +36,7 @@ export const findById = async (id: string, populate = false) => {
     id: user._id,
     name: user.name,
     email: user.email,
+    wallet: user.wallet,
     wins: user.wins,
     losses: user.losses,
     draws: user.draws,
