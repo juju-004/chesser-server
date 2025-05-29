@@ -42,11 +42,11 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
 
   const user: User = {
     id: req.session.user.id,
+    isHost: true,
     name,
   };
 
   const game: Partial<Game> = {
-    host: user,
     stake: amount,
     timeControl,
   };

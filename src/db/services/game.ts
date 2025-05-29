@@ -1,10 +1,11 @@
 import { nanoid } from "nanoid";
 import { Game } from "../../../types/index.js";
 import { GameModel, UserModel } from "../index.js"; // Import models from index.js
-import { activeGames } from "../../state.js";
+import { activeGames, gameChats } from "../../state.js";
 
 export const save = async (game: Game) => {
   try {
+    const chat = gameChats.get(game.code);
     // Create game document in MongoDB
     const newGame = new GameModel({
       winner: game.winner,
@@ -12,13 +13,13 @@ export const save = async (game: Game) => {
       pgn: game.pgn,
       code: game.code,
       stake: game.stake,
-      chat: game.chat,
       timer: game.timer,
       timeControl: game.timeControl,
       white: game.white.id,
       black: game.black.id,
       startedAt: new Date(game.startedAt),
       endedAt: game.endedAt ? new Date(game.endedAt) : Date.now(),
+      chat,
     });
 
     const result = await newGame.save();
@@ -91,7 +92,6 @@ export const findByUserId = async (id: string, limit = 10) => {
 export const initGame = (game: Partial<Game>) => {
   const newGame: Game = {
     code: nanoid(6),
-    host: game.host,
     pgn: "",
     stake: game.stake,
     timeControl: game.timeControl,
@@ -102,33 +102,22 @@ export const initGame = (game: Partial<Game>) => {
       black: game.timeControl * 60 * 1000,
       lastUpdate: Date.now(),
     },
-    chat: [],
   };
 
   if (game.white) {
     newGame.white = {
       ...game.white,
-      connected: false,
-      disconnectedOn: Date.now(),
     };
   }
   if (game.black) {
     newGame.black = {
       ...game.black,
-      connected: false,
-      disconnectedOn: Date.now(),
-    };
-  }
-  if (game.host) {
-    newGame.host = {
-      ...game.host,
-      connected: false,
-      disconnectedOn: Date.now(),
     };
   }
 
   // Save the game to active games
   activeGames.set(newGame.code, newGame);
+  gameChats.set(newGame.code, []);
 
   return newGame;
 };

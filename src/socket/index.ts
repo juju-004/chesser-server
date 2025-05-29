@@ -32,7 +32,7 @@ import {
 } from "../db/services/user.js";
 import { nanoid } from "nanoid";
 import { initGame, isValidGameParams } from "../db/services/game.js";
-import { Game } from "../../types/index.js";
+import { Game, User } from "../../types/index.js";
 
 const socketError = (socket: Socket, err: string) => {
   socket.emit("error", err);
@@ -73,11 +73,13 @@ const socketConnect = (socket: Socket) => {
   }
 
   // Disconnect
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     if (userId) {
       onlineUsers.delete(userId);
       notifyFriends(userId, false);
       console.log(`❌ ${userId} disconnected`);
+
+      leaveLobby.call(socket);
     }
   });
 
@@ -123,8 +125,9 @@ const socketConnect = (socket: Socket) => {
     if (err) return socketError(socket, err);
 
     if (!challenge && challenge.to !== userId) return;
-    const sender = {
+    const sender: Partial<User> = {
       id: challenge.from.id,
+      isHost: true,
       name: challenge.from.name,
     };
     const receiver = {
@@ -133,7 +136,6 @@ const socketConnect = (socket: Socket) => {
     };
 
     const game: Partial<Game> = {
-      host: sender,
       timeControl: challenge.timeControl,
       stake: challenge.amount,
     };
@@ -232,10 +234,10 @@ const socketConnect = (socket: Socket) => {
   });
 
   // Game Logic
-  socket.on("joinLobby", joinLobby);
-  socket.on("leaveLobby", leaveLobby);
+  socket.on("game:join", joinLobby);
+  socket.on("game:leave", leaveLobby);
 
-  socket.on("getLatestGame", getLatestGame);
+  socket.on("game:get_game", getLatestGame);
   socket.on("sendMove", sendMove);
   socket.on("joinAsPlayer", joinAsPlayer);
   socket.on("chat", chat);

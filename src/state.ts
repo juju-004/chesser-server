@@ -1,4 +1,4 @@
-import { Game, User } from "../types/index.js";
+import { Game, Message, User } from "../types/index.js";
 
 export type ChallengeData = {
   from: Partial<User>;
@@ -11,6 +11,8 @@ export type ChallengeData = {
 export const activeChallenges = new Map<string, ChallengeData>();
 export const onlineUsers = new Map<string, string>(); // userId => socketId
 export const activeGames: Map<string, Game> = new Map();
+export const gameRooms: Record<string, Map<string, any>> = {};
+export const gameChats = new Map<string, Message[]>();
 
 export const addOnlineUser = (userId: string, socketId: string) => {
   onlineUsers.set(userId, socketId);

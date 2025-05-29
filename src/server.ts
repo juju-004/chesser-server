@@ -33,8 +33,8 @@ app.use(errorHandler);
 // Socket.io
 export const io = new Server(server, {
   cors: corsConfig,
-  pingInterval: 30000,
-  pingTimeout: 50000,
+  pingInterval: 2500,
+  pingTimeout: 6000,
 });
 
 io.use((socket, next) => {

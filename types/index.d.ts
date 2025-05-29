@@ -11,7 +11,6 @@ export interface Game {
   black?: User;
   activePlayer?: "white" | "black";
   winner?: "white" | "black" | "draw";
-  chat: Message[];
   endReason?:
     | "draw"
     | "checkmate"
@@ -22,11 +21,8 @@ export interface Game {
     | "timeout"
     | "resigned"
     | "aborted";
-  host?: User;
   code?: string;
-  unlisted?: boolean;
   timeout?: number;
-  observers?: User[];
   startedAt?: number;
   endedAt?: number;
   timer?: GameTimer;
@@ -45,8 +41,7 @@ export interface User {
 
   // mainly for players, not spectators
   wallet?: number;
-  connected?: boolean;
-  disconnectedOn?: number;
+  isHost?: boolean;
 }
 
 export interface Message {
