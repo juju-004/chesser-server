@@ -8,7 +8,7 @@ import {
   isDateGreaterOrLessThanADay,
 } from "../db/helper.js";
 import { sendEmail } from "../db/sendMail.js";
-import { UserModel } from "../db/index.js";
+import Preference, { UserModel } from "../db/index.js";
 
 export const getCurrentSession = (req: Request, res: Response) => {
   if (req.session.user) res.status(200).json(req.session.user);
@@ -31,9 +31,13 @@ export const doesNameExist = asyncHandler(
 
 export const logoutSession = asyncHandler(
   async (req: Request, res: Response) => {
+    const user = req.session.user;
+
     req.session.destroy(() => {
       res.status(204).end();
     });
+
+    res.json(user);
   },
   true
 );
@@ -65,10 +69,10 @@ export const registerUser = asyncHandler(
 
     const mail = await sendEmail(email, `${token}-${name}`, false);
 
-    console.log(`${token}-${name}`);
-
     if (!mail.success) throw Error("Failed to send mail");
+
     const newUser = await UserService.create({ name, email }, token, password);
+    await Preference.create({ id: newUser.id });
 
     res.status(200).json({ email: newUser.email });
   }
@@ -165,20 +169,15 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     true
   );
 
-  if (!user.verified) {
-    res.status(200).json({ status: "Not verified" });
-  }
-
   const validPassword = await verify(user.password as string, password);
-  if (!validPassword) {
-    throw new Error("Invalid username or password.");
-  }
+  if (!validPassword) throw Error("Invalid username or password.");
 
   req.session.user = {
     id: user.id.toString(),
     name: user.name,
     email: user.email,
   };
+
   req.session.save(() => {
     res.status(200).json(req.session.user);
   });

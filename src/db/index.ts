@@ -107,6 +107,42 @@ const friendRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const preferenceSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  theme: {
+    type: String,
+    enum: [
+      "default",
+      "classic",
+      "blue",
+      "brown",
+      "dark",
+      "green",
+      "gray",
+      "purple",
+      "red",
+      "ocean",
+      "solarized",
+    ],
+    default: "default",
+  },
+  pieceset: {
+    type: String,
+    enum: ["alpha", "maestro", "cburnett", "merida"],
+    default: "maestro",
+  },
+  sound: { type: Boolean, default: true },
+  autoQueen: { type: Boolean, default: true },
+  premove: { type: Boolean, default: true },
+});
+
+const Preference = mongoose.model("Preference", preferenceSchema);
+export default Preference;
+
 export const FriendRequest = mongoose.model(
   "FriendRequest",
   friendRequestSchema
