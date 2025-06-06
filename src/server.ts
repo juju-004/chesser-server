@@ -8,7 +8,7 @@ import { Server } from "socket.io";
 import session from "./middleware/session.js";
 import routes from "./routes/index.js";
 import { init as initSocket } from "./socket/index.js";
-import { connectDatabase } from "./db/index.js";
+import { connectDatabase } from "./db/connect.js";
 import { errorHandler } from "./db/helper.js";
 
 const corsConfig = {

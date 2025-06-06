@@ -1,6 +1,6 @@
-import mongoose, { Types } from "mongoose";
+import mongoose from "mongoose";
 import type { User } from "../../../types/index.js";
-import { UserModel } from "../index.js";
+import { UserModel } from "../models/user.js";
 
 export const create = async (user: User, token: string, password: string) => {
   try {

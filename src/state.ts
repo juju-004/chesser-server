@@ -4,12 +4,13 @@ export type ChallengeData = {
   from: Partial<User>;
   to: string;
   side: "white" | "black" | "random";
-  timeControl: number; // in minutes, or a { base, increment } object
-  amount: number; // wagered amount or points
+  timeControl: number;
+  amount: number;
 };
 
+// Game State
 export const activeChallenges = new Map<string, ChallengeData>();
-export const onlineUsers = new Map<string, string>(); // userId => socketId
+export const onlineUsers = new Map<string, string>();
 export const activeGames: Map<string, Game> = new Map();
 export const gameRooms: Record<string, Map<string, any>> = {};
 export const gameChats = new Map<string, Message[]>();
@@ -27,6 +28,5 @@ export const removeOnlineUser = (socketId: string) => {
   }
 };
 
-export const getSocketId = (userId: string): string | undefined => {
-  return onlineUsers.get(userId);
-};
+export const getSocketId = (userId: string): string | undefined =>
+  onlineUsers.get(userId);

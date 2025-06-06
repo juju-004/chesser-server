@@ -238,6 +238,9 @@ export async function joinAsPlayer(this: Socket) {
 
 export async function abort(this: Socket) {
   const game = findGameByCode(this);
+
+  console.log(game, this.data);
+
   if (!game) return;
 
   game.endReason = "aborted";
@@ -275,7 +278,7 @@ export async function offerDraw(this: Socket) {
     author: { name: "server" },
     message: `${getUserFromSession(this).name} offers a draw`,
   });
-  this.to(game.code).emit("offerdraw");
+  this.to(game.code).emit("draw:received");
 }
 
 export async function acceptDraw(this: Socket) {
@@ -333,8 +336,8 @@ export async function rematch(this: Socket, lastGame?: Game) {
     };
 
     const mainGame = initGame(game);
-    io.to(lastGame.code).emit("newGameCode", mainGame.code);
+    io.to(lastGame.code).emit("rematch:accept", mainGame.code);
   } else {
-    this.to(this.data.code as string).emit("rematch");
+    this.to(this.data.code as string).emit("rematch:received");
   }
 }

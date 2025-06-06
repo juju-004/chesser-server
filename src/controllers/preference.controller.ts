@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../db/helper.js";
-import Preference from "../db/index.js";
+import { Preference } from "../db/models/preference.js";
 
 export const getUserPreference = asyncHandler(
   async (req: Request, res: Response) => {

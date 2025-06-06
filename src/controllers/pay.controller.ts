@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../db/helper.js";
 import axios from "axios";
-import { TransactionModel, UserModel } from "../db/index.js";
+import { UserModel, TransactionModel } from "../db/models/index.js";
 
 export const initPayment = asyncHandler(async (req: Request, res: Response) => {
   const id = req.session?.user?.id;

@@ -23,7 +23,6 @@ import {
   getSocketId,
   onlineUsers,
 } from "../state.js"; // adjust path
-import { FriendRequest, UserModel } from "../db/index.js";
 import {
   findById,
   getFriends,
@@ -33,6 +32,7 @@ import {
 import { nanoid } from "nanoid";
 import { initGame, isValidGameParams } from "../db/services/game.js";
 import { Game, User } from "../../types/index.js";
+import { FriendRequest } from "../db/models/friendreq.js";
 
 const socketError = (socket: Socket, err: string) => {
   socket.emit("error", err);
@@ -243,9 +243,9 @@ const socketConnect = (socket: Socket) => {
   socket.on("chat", chat);
   socket.on("claimAbandoned", claimAbandoned);
   socket.on("abort", abort);
-  socket.on("offerDraw", offerDraw);
+  socket.on("draw:offer", offerDraw);
   socket.on("resign", resign);
-  socket.on("acceptDraw", acceptDraw);
+  socket.on("draw:accept", acceptDraw);
   socket.on("rematch", rematch);
 };
 

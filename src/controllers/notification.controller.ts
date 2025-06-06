@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-import { FriendRequest } from "../db/index.js";
+import { FriendRequest } from "../db/models/friendreq.js";
 import { asyncHandler } from "../db/helper.js";
 
 export const getUserNotifications = asyncHandler(

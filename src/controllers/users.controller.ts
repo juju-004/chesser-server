@@ -1,8 +1,7 @@
 import type { Request, Response } from "express";
 import xss from "xss";
 
-import { FriendRequest, GameModel } from "../db/index.js";
-import { UserModel } from "../db/index.js";
+import { GameModel, FriendRequest, UserModel } from "../db/models/index.js";
 import { onlineUsers } from "../state.js";
 import { asyncHandler } from "../db/helper.js";
 import { findByNameOrEmail } from "../db/services/user.js";

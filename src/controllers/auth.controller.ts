@@ -7,8 +7,8 @@ import {
   generateRandomSequence,
   isDateGreaterOrLessThanADay,
 } from "../db/helper.js";
-import { sendEmail } from "../db/sendMail.js";
-import Preference, { UserModel } from "../db/index.js";
+import { sendEmail } from "../db/mailer.js";
+import { UserModel, Preference } from "../db/models/index.js";
 
 export const getCurrentSession = (req: Request, res: Response) => {
   if (req.session.user) res.status(200).json(req.session.user);

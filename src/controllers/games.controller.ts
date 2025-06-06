@@ -1,9 +1,7 @@
 import type { Game, User } from "../../types/index.js";
 import type { Request, Response } from "express";
-import { nanoid } from "nanoid";
-
 import { asyncHandler } from "../db/helper.js";
-import { GameModel, UserModel } from "../db/index.js";
+import { GameModel } from "../db/models/game.js";
 import { activeGames } from "../state.js";
 import { initGame, isValidGameParams } from "../db/services/game.js";
 import { findByNameOrEmail } from "../db/services/user.js";
