@@ -31,21 +31,33 @@ export const getUserData = async (req: Request, res: Response) => {
 export const getUserGames = asyncHandler(
   async (req: Request, res: Response) => {
     const name = xss(req.params.name); // Sanitize the input to prevent XSS
+    const page = xss(req.params.page);
 
     const user = await UserModel.findOne({ name });
     if (!user) throw new Error("User not found");
 
+    const limit = 10;
+    const skip = parseInt(page as string) * limit;
+
     // Fetch recent games for the user
+    const totalGames =
+      parseInt(page as string) === 0
+        ? await GameModel.countDocuments({
+            $or: [{ white: user.id }, { black: user.id }],
+          })
+        : 0;
+
     const games = await GameModel.find({
       $or: [{ white: user.id }, { black: user.id }],
     })
-      .limit(30)
-      .populate("white black", "name")
       .sort({
         startedAt: -1,
-      });
+      })
+      .skip(skip)
+      .limit(limit)
+      .populate("white black", "name");
 
-    res.status(200).json(games);
+    res.json({ count: totalGames, games });
   },
   true
 );
