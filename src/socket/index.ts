@@ -4,16 +4,14 @@ import { io } from "../server.js";
 import {
   chat,
   claimAbandoned,
-  getLatestGame,
   joinAsPlayer,
   joinLobby,
   leaveLobby,
   abort,
   sendMove,
-  offerDraw,
   resign,
-  acceptDraw,
   rematch,
+  draw,
 } from "./game.socket.js";
 
 import {
@@ -37,6 +35,8 @@ import { FriendRequest } from "../db/models/friendreq.js";
 const socketError = (socket: Socket, err: string) => {
   socket.emit("error", err);
 };
+
+const largeRoom = (params) => {};
 
 const socketConnect = (socket: Socket) => {
   const req = socket.request;
@@ -69,6 +69,9 @@ const socketConnect = (socket: Socket) => {
   if (userId) {
     addOnlineUser(userId, socket.id);
     notifyFriends(userId, true);
+    if (Array.from(socket.rooms)[1]) {
+      joinLobby.call(socket, Array.from(socket.rooms)[1]);
+    }
     console.log(`🔌 ${userId} connected`);
   }
 
@@ -79,7 +82,9 @@ const socketConnect = (socket: Socket) => {
       notifyFriends(userId, false);
       console.log(`❌ ${userId} disconnected`);
 
-      leaveLobby.call(socket);
+      if (Array.from(socket.rooms)[1]) {
+        leaveLobby.call(socket);
+      }
     }
   });
 
@@ -237,18 +242,17 @@ const socketConnect = (socket: Socket) => {
   socket.on("game:join", joinLobby);
   socket.on("game:leave", leaveLobby);
 
-  socket.on("game:get_game", getLatestGame);
   socket.on("sendMove", sendMove);
   socket.on("joinAsPlayer", joinAsPlayer);
   socket.on("chat", chat);
   socket.on("claimAbandoned", claimAbandoned);
   socket.on("abort", abort);
-  socket.on("draw:offer", offerDraw);
+  socket.on("draw", draw);
   socket.on("resign", resign);
-  socket.on("draw:accept", acceptDraw);
   socket.on("rematch", rematch);
 };
 
+// do
 export const init = () => {
   io.on("connection", socketConnect);
 };

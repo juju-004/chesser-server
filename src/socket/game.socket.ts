@@ -1,85 +1,105 @@
 import type { Game } from "../../types/index.js";
 import { Chess } from "chess.js";
-import type { Socket } from "socket.io";
-import { activeGames } from "../state.js";
+import { Socket } from "socket.io";
+import { onlineUsers } from "../state.js";
 import { io } from "../server.js";
 import {
-  connectPlayer,
   deleteGameByCode,
-  disconnectPlayer,
+  emitToOpponent,
   findGameByCode,
   findGameWithChatByCode,
   gameOver,
+  getPlayerSide,
   getUpdatedTimer,
   getUserFromSession,
-  isPlayerConnected,
 } from "./utils.js";
 import { initGame } from "../db/services/game.js";
 
-export async function joinLobby(this: Socket, code: string) {
-  if (this.rooms.size >= 3) {
-    console.log("large rooms");
+const updateConnectedUsers = (code: string) => {
+  const room = io.sockets.adapter.rooms.get(code);
+  if (!room) return; // Room doesn't exist or already empty
 
-    await leaveLobby.call(this, code);
-    return;
+  const users = [];
+  for (const socketId of room) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket) {
+      const { id, name } = getUserFromSession(socket);
+      users.push({ id, name });
+    }
   }
-  const game = activeGames.get(code);
-  if (!game) return;
 
-  const { id, name } = getUserFromSession(this);
+  io.to(code).emit("update_users", users);
+};
+
+const roomModerator = (socket: Socket, code: string) => {
+  const rooms = Array.from(socket.rooms).splice(1);
+
+  // console.log(rooms);
+
+  rooms.forEach(async (room) => {
+    if (room === code) return;
+    const game = findGameByCode(room);
+
+    if (game && !game.endReason) {
+      socket.emit("redirect", game.code);
+    } else {
+      await socket.leave(room);
+    }
+  });
+};
+
+export async function joinLobby(this: Socket, code: string) {
+  console.log("join", code);
+
+  const game = findGameByCode(code);
+  if (Array.from(this.rooms)[1] === code || !game) return;
+
+  roomModerator(this, code);
+  console.log("aftmoderate", Array.from(this.rooms));
 
   if (game.timeout) {
     clearTimeout(game.timeout);
     game.timeout = undefined;
   }
 
-  this.data.code = code;
-  this.data.id = id;
-  this.data.name = name;
   await this.join(code);
-
-  connectPlayer(code, { id, name }, this);
-  io.to(game.code as string).emit("game:update", game);
+  updateConnectedUsers(code);
+  io.to(code).emit("game:update", game);
 }
 
 export async function leaveLobby(this: Socket) {
-  const code = this.data?.code;
+  const code = Array.from(this.rooms)[1];
+
+  console.log("leave", code);
 
   if (!code) return;
-  if (this.rooms.size >= 3 && !code) {
-    console.log(`leaveLobby: room size is ${this.rooms.size}, aborting...`);
-    return;
-  }
-
   const game = findGameByCode(code);
 
   if (!game) {
     await this.leave(code);
+    updateConnectedUsers(code);
     return;
   }
 
   const sockets = await io.in(game.code as string).fetchSockets();
 
-  if (sockets.length <= 1) {
+  if (sockets.length === 0) {
     if (game.timeout) clearTimeout(game.timeout);
 
     let timeout = 1000 * 60; // 1 minute
     if (game.pgn) timeout *= 20;
 
-    game.timeout = Number(
-      setTimeout(() => {
-        activeGames.delete(game.code);
-      }, timeout)
-    );
+    game.timeout = Number(setTimeout(() => deleteGameByCode(this), timeout));
   }
 
   await this.leave(code);
-  disconnectPlayer(this);
+  updateConnectedUsers(code);
 }
 
 export async function claimAbandoned(this: Socket, type: "win" | "draw") {
   const game = findGameByCode(this);
   const { id, name } = getUserFromSession(this);
+
   if (
     !game ||
     !game.pgn ||
@@ -87,17 +107,16 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
     !game.black ||
     (game.white.id !== id && game.black.id !== id)
   ) {
-    console.log(`claimAbandoned: Invalid game or user is not a player.`);
     return;
   }
 
-  const opponentId = game.white.id === id ? game.black.id : game.white.id;
-  const opponentConnected = isPlayerConnected(opponentId as string);
+  const playerSide = getPlayerSide(id as string, game);
+  if (!playerSide) return;
 
-  if (opponentConnected) {
-    console.log(
-      `claimAbandoned: Invalid claim by ${name}. Opponent is still connected or disconnected less than 50 seconds ago.`
-    );
+  const opponentId = game[playerSide === "white" ? "black" : "white"]?.id;
+
+  if (onlineUsers.has(opponentId as string)) {
+    io.to(game.code).emit("lobby:update", game);
     return;
   }
 
@@ -111,15 +130,9 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
   });
 }
 
-export async function getLatestGame(this: Socket, code: string) {
-  if (!this.data.code) this.data.code = code;
-  const game = findGameByCode(this);
-  if (game) this.emit("game:update", game);
-}
-
 function startTimerInterval(code: string, interval: number) {
   const gameTimer = setInterval(() => {
-    const game = activeGames.get(code);
+    const game = findGameByCode(code);
 
     if (!game || game?.endReason) {
       clearInterval(gameTimer);
@@ -238,24 +251,24 @@ export async function joinAsPlayer(this: Socket) {
 
 export async function abort(this: Socket) {
   const game = findGameByCode(this);
-
-  console.log(game, this.data);
-
   if (!game) return;
 
   game.endReason = "aborted";
 
+  io.to(Array.from(this.rooms)[1]).emit("lobby:update", game);
   deleteGameByCode(this);
-  io.to(game.code).emit("lobby:update", game);
 }
 
 export async function resign(this: Socket) {
   const game = findGameByCode(this);
   if (!game) return;
 
-  const winnerSide =
-    getUserFromSession(this).id === game.black?.id ? "white" : "black";
+  const { id } = getUserFromSession(this);
 
+  const playerSide = getPlayerSide(id as string, game);
+  if (!playerSide) return;
+
+  const winnerSide = playerSide === "white" ? "black" : "white";
   game.endReason = "resigned";
 
   gameOver({
@@ -265,37 +278,39 @@ export async function resign(this: Socket) {
   });
 }
 
-export async function offerDraw(this: Socket) {
+export async function draw(
+  this: Socket,
+  type: "offer" | "decline" | "accept",
+  uid: string
+) {
   const { game, chat } = findGameWithChatByCode(this);
   if (!game) return;
 
-  io.to(game.code).emit("chat", {
-    author: { name: "server" },
-    message: `${getUserFromSession(this).name} offers a draw`,
-  });
+  const { id, name } = getUserFromSession(this);
 
-  chat.push({
+  const message = {
     author: { name: "server" },
-    message: `${getUserFromSession(this).name} offers a draw`,
-  });
-  this.to(game.code).emit("draw:received");
-}
+    message: `${name} ${type}'s draw`,
+  };
 
-export async function acceptDraw(this: Socket) {
-  const { game, chat } = findGameWithChatByCode(this);
-  if (!game) return;
+  if (type === "offer") {
+    chat.push(message);
+    io.to(game.code).emit("chat", message);
 
-  game.endReason = `draw`;
+    emitToOpponent(this, "draw:received", id);
+  } else if (type === "accept") {
+    if (!getPlayerSide(uid, game) && !getPlayerSide(id as string, game)) return;
 
-  io.to(game.code).emit("chat", {
-    author: { name: "server" },
-    message: `${getUserFromSession(this).name} accepts draw`,
-  });
-  chat.push({
-    author: { name: "server" },
-    message: `${getUserFromSession(this).name} accepts draw`,
-  });
-  gameOver({ game });
+    game.endReason = `draw`;
+    chat.push(message);
+    io.to(game.code).emit("chat", message);
+
+    gameOver({ game });
+  } else if (type === "decline") {
+    if (!getPlayerSide(uid, game) && !getPlayerSide(id as string, game)) return;
+    chat.push(message);
+    io.to(game.code).emit("chat", message);
+  }
 }
 
 export async function chat(
@@ -314,12 +329,12 @@ export async function chat(
   }
 
   if (server) {
-    io.to(game.code).emit("chat", {
+    io.to(Array.from(this.rooms)[1]).emit("chat", {
       author: { name: "server" },
       message,
     });
   } else {
-    this.to(game.code).emit("chat", {
+    this.to(Array.from(this.rooms)[1]).emit("chat", {
       author: { name },
       message,
     });
@@ -336,7 +351,7 @@ export async function rematch(this: Socket, lastGame?: Game) {
     };
 
     const mainGame = initGame(game);
-    io.to(lastGame.code).emit("rematch:accept", mainGame.code);
+    io.to(lastGame.code).emit("redirect", mainGame.code);
   } else {
     this.to(this.data.code as string).emit("rematch:received");
   }

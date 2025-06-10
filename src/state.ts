@@ -12,7 +12,6 @@ export type ChallengeData = {
 export const activeChallenges = new Map<string, ChallengeData>();
 export const onlineUsers = new Map<string, string>();
 export const activeGames: Map<string, Game> = new Map();
-export const gameRooms: Record<string, Map<string, any>> = {};
 export const gameChats = new Map<string, Message[]>();
 
 export const addOnlineUser = (userId: string, socketId: string) => {

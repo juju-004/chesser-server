@@ -1,8 +1,8 @@
 import { Socket } from "socket.io";
 import GameService from "../db/services/game.js";
-import { Game, User } from "../../types/index.js";
+import { Game } from "../../types/index.js";
 import { io } from "../server.js";
-import { activeGames, gameChats, gameRooms } from "../state.js";
+import { activeGames, gameChats, getSocketId } from "../state.js";
 
 interface GameOverProps {
   game: Game;
@@ -10,32 +10,49 @@ interface GameOverProps {
   winnerName?: string;
 }
 
+type Side = "white" | "black";
+
 // Helper function to find the game by its code
 export const findGameByCode = (socket: Socket | string) => {
   return typeof socket === "string"
     ? activeGames.get(socket)
-    : activeGames.get(socket.data.code as string);
+    : activeGames.get(Array.from(socket.rooms)[1]);
 };
 
 export const findGameWithChatByCode = (socket: Socket) => {
-  const game = activeGames.get(socket.data.code as string);
-  const chat = gameChats.get(socket.data.code as string);
+  const game = activeGames.get(Array.from(socket.rooms)[1]);
+  const chat = gameChats.get(Array.from(socket.rooms)[1]);
   return { game, chat };
 };
-export function isPlayerConnected(userId: string): boolean {
-  return true;
+
+export const getPlayerSide = (id: string, game: Game): Side | null => {
+  if (id === game.white?.id) return "white" as Side;
+  else if (id === game.black?.id) return "black" as Side;
+
+  return null;
+};
+
+export function emitToOpponent(socket: Socket, ev: string, data: any) {
+  const game = findGameByCode(socket);
+  const pside = getPlayerSide(getUserFromSession(socket).id as string, game);
+  if (!pside && !game) return;
+
+  const opponentSide: Side = pside === "white" ? "black" : "white";
+
+  if (game[opponentSide]) {
+    const opponentId = getSocketId(game[opponentSide].id as string);
+    io.to(opponentId).emit(ev, data);
+  }
 }
 
 export const deleteGameByCode = (socket: Socket) => {
-  activeGames.delete(socket.data.code as string);
-  gameChats.delete(socket.data.code as string);
+  activeGames.delete(Array.from(socket.rooms)[1] as string);
+  gameChats.delete(Array.from(socket.rooms)[1] as string);
 };
 
-// Helper function to get user from session
 export const getUserFromSession = (socket: Socket) =>
   socket.request.session.user;
 
-// Utility function to get updated timer data
 export const getUpdatedTimer = (timer: Game["timer"]) => ({
   white: timer.white,
   black: timer.black,
@@ -53,33 +70,4 @@ export const gameOver = async ({
 
   io.to(game.code).emit("game:over", { winnerName, winnerSide, result });
   activeGames.delete(result.code);
-};
-
-export const connectPlayer = async (
-  gameCode: string,
-  user: Partial<User>,
-  socket: Socket
-) => {
-  if (!gameRooms[gameCode]) {
-    gameRooms[gameCode] = new Map();
-  }
-
-  gameRooms[gameCode].set(socket.id, user);
-
-  const users = Array.from(gameRooms[gameCode].values());
-  io.to(gameCode).emit("update_connected_users", users);
-};
-
-export const disconnectPlayer = (socket: Socket) => {
-  const gameCode = socket.data?.code;
-  if (gameCode && gameRooms[gameCode]) {
-    gameRooms[gameCode].delete(socket.id);
-
-    if (gameRooms[gameCode].size === 0) {
-      delete gameRooms[gameCode];
-    } else {
-      const users = Array.from(gameRooms[gameCode].values());
-      io.to(gameCode).emit("update_connected_users", users);
-    }
-  }
 };
