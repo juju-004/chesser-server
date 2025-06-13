@@ -12,6 +12,7 @@ import {
   resign,
   rematch,
   draw,
+  updateSocket,
 } from "./game.socket.js";
 
 import {
@@ -35,8 +36,6 @@ import { FriendRequest } from "../db/models/friendreq.js";
 const socketError = (socket: Socket, err: string) => {
   socket.emit("error", err);
 };
-
-const largeRoom = (params) => {};
 
 const socketConnect = (socket: Socket) => {
   const req = socket.request;
@@ -82,13 +81,13 @@ const socketConnect = (socket: Socket) => {
       notifyFriends(userId, false);
       console.log(`❌ ${userId} disconnected`);
 
-      if (Array.from(socket.rooms)[1]) {
+      if (socket.data.code) {
         leaveLobby.call(socket);
       }
     }
   });
 
-  // Challenge
+  // Challenged
   socket.on("challenge:send", async ({ to, side, timeControl, amount }) => {
     const id = nanoid();
 
@@ -241,6 +240,7 @@ const socketConnect = (socket: Socket) => {
   // Game Logic
   socket.on("game:join", joinLobby);
   socket.on("game:leave", leaveLobby);
+  socket.on("game:refresh", updateSocket);
 
   socket.on("sendMove", sendMove);
   socket.on("joinAsPlayer", joinAsPlayer);

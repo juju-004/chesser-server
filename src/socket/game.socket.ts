@@ -1,7 +1,7 @@
 import type { Game } from "../../types/index.js";
 import { Chess } from "chess.js";
 import { Socket } from "socket.io";
-import { onlineUsers } from "../state.js";
+import { getSocketId } from "../state.js";
 import { io } from "../server.js";
 import {
   deleteGameByCode,
@@ -15,47 +15,55 @@ import {
 } from "./utils.js";
 import { initGame } from "../db/services/game.js";
 
-const updateConnectedUsers = (code: string) => {
+const getConnectedUsers = (code: string) => {
   const room = io.sockets.adapter.rooms.get(code);
-  if (!room) return; // Room doesn't exist or already empty
+  if (!room) return null; // Room doesn't exist or already empty
 
-  const users = [];
+  const users: { id: string; name: string }[] = [];
   for (const socketId of room) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket) {
       const { id, name } = getUserFromSession(socket);
-      users.push({ id, name });
+      users.push({ id: id as string, name });
     }
   }
+
+  return users;
+};
+
+const updateConnectedUsers = (code: string) => {
+  const users = getConnectedUsers(code);
+  if (!users) return;
 
   io.to(code).emit("update_users", users);
 };
 
-const roomModerator = (socket: Socket, code: string) => {
+const roomModerator = async (socket: Socket, code: string) => {
   const rooms = Array.from(socket.rooms).splice(1);
 
-  // console.log(rooms);
+  for (let i = 0; i < rooms.length; i++) {
+    if (rooms[i] === code) continue;
+    const game = findGameByCode(rooms[i]);
 
-  rooms.forEach(async (room) => {
-    if (room === code) return;
-    const game = findGameByCode(room);
-
-    if (game && !game.endReason) {
+    if (game && game.pgn.length && !game.endReason) {
       socket.emit("redirect", game.code);
+      socket.to(game.code).emit("game:update", game);
+      return true;
     } else {
-      await socket.leave(room);
+      await leaveLobby.call(socket, rooms[i]);
     }
-  });
+  }
+
+  return false;
 };
 
 export async function joinLobby(this: Socket, code: string) {
-  console.log("join", code);
-
   const game = findGameByCode(code);
-  if (Array.from(this.rooms)[1] === code || !game) return;
 
-  roomModerator(this, code);
-  console.log("aftmoderate", Array.from(this.rooms));
+  if (!game || Array.from(this.rooms)[1] === code) return;
+
+  const isInGame = await roomModerator(this, code);
+  if (isInGame) return;
 
   if (game.timeout) {
     clearTimeout(game.timeout);
@@ -63,14 +71,24 @@ export async function joinLobby(this: Socket, code: string) {
   }
 
   await this.join(code);
+  this.data.code = code;
   updateConnectedUsers(code);
-  io.to(code).emit("game:update", game);
+  this.to(code).emit("game:update", game);
 }
 
-export async function leaveLobby(this: Socket) {
-  const code = Array.from(this.rooms)[1];
+export async function updateSocket(this: Socket, code: string) {
+  const game = findGameByCode(code);
+  if (!game) return;
 
-  console.log("leave", code);
+  const { id } = getUserFromSession(this);
+  const socId = getSocketId(id as string);
+
+  io.to(socId).emit("game:update", game);
+  updateConnectedUsers(code);
+}
+
+export async function leaveLobby(this: Socket, cod?: string) {
+  const code: string | undefined = cod || this.data.code;
 
   if (!code) return;
   const game = findGameByCode(code);
@@ -86,10 +104,10 @@ export async function leaveLobby(this: Socket) {
   if (sockets.length === 0) {
     if (game.timeout) clearTimeout(game.timeout);
 
-    let timeout = 1000 * 60; // 1 minute
+    let timeout = 1000 * 30;
     if (game.pgn) timeout *= 20;
 
-    game.timeout = Number(setTimeout(() => deleteGameByCode(this), timeout));
+    game.timeout = Number(setTimeout(() => deleteGameByCode(code), timeout));
   }
 
   await this.leave(code);
@@ -115,8 +133,12 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
 
   const opponentId = game[playerSide === "white" ? "black" : "white"]?.id;
 
-  if (onlineUsers.has(opponentId as string)) {
-    io.to(game.code).emit("lobby:update", game);
+  const inGameUsers = getConnectedUsers(game.code);
+
+  if (inGameUsers.some((c) => c.id === opponentId)) {
+    const socId = getSocketId(id as string);
+    io.to(socId).emit("lobby:update", game);
+    updateConnectedUsers(game.code);
     return;
   }
 
@@ -256,7 +278,7 @@ export async function abort(this: Socket) {
   game.endReason = "aborted";
 
   io.to(Array.from(this.rooms)[1]).emit("lobby:update", game);
-  deleteGameByCode(this);
+  deleteGameByCode(game.code);
 }
 
 export async function resign(this: Socket) {
@@ -343,6 +365,8 @@ export async function chat(
 
 export async function rematch(this: Socket, lastGame?: Game) {
   if (lastGame) {
+    console.log("lgame", lastGame);
+
     const game: Partial<Game> = {
       stake: lastGame.stake,
       timeControl: lastGame.timeControl,

@@ -45,9 +45,9 @@ export function emitToOpponent(socket: Socket, ev: string, data: any) {
   }
 }
 
-export const deleteGameByCode = (socket: Socket) => {
-  activeGames.delete(Array.from(socket.rooms)[1] as string);
-  gameChats.delete(Array.from(socket.rooms)[1] as string);
+export const deleteGameByCode = (code: string) => {
+  activeGames.delete(code);
+  gameChats.delete(code);
 };
 
 export const getUserFromSession = (socket: Socket) =>
@@ -56,6 +56,7 @@ export const getUserFromSession = (socket: Socket) =>
 export const getUpdatedTimer = (timer: Game["timer"]) => ({
   white: timer.white,
   black: timer.black,
+  lastUpdate: timer.lastUpdate,
 });
 
 export const gameOver = async ({
