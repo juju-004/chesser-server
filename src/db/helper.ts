@@ -49,7 +49,7 @@ export const asyncHandler = (fn: AsyncHandler, requiresSession = false) => {
 
 export function generateRandomSequence(length = 30) {
   const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    "ABCDEFGHIJKMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
 
   for (let i = 0; i < length; i++) {

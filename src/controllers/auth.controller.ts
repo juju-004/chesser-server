@@ -61,20 +61,25 @@ export const registerUser = asyncHandler(
       true
     );
 
+    if (duplicateUser && !duplicateUser.verified) {
+      res.json({ notVerified: true, email: duplicateUser.email });
+      return;
+    }
     if (duplicateUser) {
       throw new Error(`This username or email is already in use.`);
     }
 
     const token = generateRandomSequence();
-
-    const mail = await sendEmail(email, `${token}-${name}`, false);
-
-    if (!mail.success) throw Error("Failed to send mail");
-
     const newUser = await UserService.create({ name, email }, token, password);
     await Preference.create({ id: newUser.id });
 
-    res.status(200).json({ email: newUser.email });
+    // test:
+    console.log(`${token}L${newUser.id}`);
+
+    // const mail = await sendEmail(email, `${token}-${newUser.id}`, false);
+    // if (!mail.success) throw Error("Failed to send mail");
+
+    res.status(201).json({ email: newUser.email });
   }
 );
 
@@ -85,22 +90,25 @@ export const sendMail = asyncHandler(async (req: Request, res: Response) => {
   const user = await UserService.findByNameOrEmail({ email });
 
   if (type) {
-    if (!user?.verified || user?.forgotPassPassword.length)
-      throw Error("Invalid Email");
+    if (!user.verified) throw Error("Invalid Email");
 
-    if (!isDateGreaterOrLessThanADay(user.updatedAt)) {
-      throw Error("Please try again after 24 hours");
-    }
+    // if (!isDateGreaterOrLessThanADay(user.updatedAt)) {
+    //   throw Error("Please try again after 24 hours");
+    // }
   } else {
-    if (!user || user?.verified) throw Error("Invalid Email");
+    if (user.verified) throw Error("Invalid Email");
   }
 
-  const token = generateRandomSequence();
-  await sendEmail(
-    email,
-    `${type ? "f.pophfs45v" : ""}${token}-${user?.name}`,
-    false
-  );
+  const token = `${type ? "f.pophfs45v" : ""}${generateRandomSequence()}`;
+
+  // test:
+  console.log(`${token}L${user.id}`);
+
+  // await sendEmail(
+  //   email,
+  //   `${type ? "f.pophfs45v" : ""}${token}-${user.id}`,
+  //   false
+  // );
 
   if (type) {
     const password = await hash(req.body.password);
@@ -124,9 +132,9 @@ export const sendMail = asyncHandler(async (req: Request, res: Response) => {
 
 export const emailVerification = asyncHandler(
   async (req: Request, res: Response) => {
-    const [token, name] = req.body.token.split("-");
+    const [token, id] = req.body.token.split("L");
 
-    const user = await UserService.findByNameOrEmail({ name });
+    const user = await UserModel.findById(id);
 
     if ((token as string).startsWith("f.pophfs45v")) {
       if (
@@ -144,7 +152,7 @@ export const emailVerification = asyncHandler(
         },
       });
 
-      res.status(200).json({ message: "Password Changed successfully" });
+      res.json({ message: "Password Changed successfully" });
     } else {
       if (!user || user?.verified || user.token !== token)
         throw Error("Invalid Token or Expired token");
@@ -172,6 +180,11 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
   const validPassword = await verify(user.password as string, password);
   if (!validPassword) throw Error("Invalid username or password.");
 
+  if (!user.verified) {
+    res.json({ notVerified: true, email: user.email });
+    return;
+  }
+
   req.session.user = {
     id: user.id.toString(),
     name: user.name,
@@ -179,7 +192,7 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
   };
 
   req.session.save(() => {
-    res.status(200).json(req.session.user);
+    res.json(req.session.user);
   });
 });
 
