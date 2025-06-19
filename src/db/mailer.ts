@@ -1,8 +1,6 @@
 // You need the Notify SDK installed: npm install notifycx
 import { Notify } from "notifycx";
 
-const notify = new Notify(process.env.NOTIFY_KEY);
-
 export async function sendEmail(
   email: string,
   hashedtoken: string,
@@ -237,6 +235,8 @@ export async function sendEmail(
 </html>
             
             `;
+
+  const notify = new Notify("e7ebacba-f607-41e0-a2d0-e3d904e6e1f8");
 
   const response = await notify.sendEmail({
     to: email,

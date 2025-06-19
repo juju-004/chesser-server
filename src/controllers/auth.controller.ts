@@ -44,15 +44,17 @@ export const logoutSession = asyncHandler(
 
 export const registerUser = asyncHandler(
   async (req: Request, res: Response) => {
-    const name = xss(req.body.name);
-    const email = xss(req.body.email);
-    const password = await hash(req.body.password);
+    const name = xss(req.body.name).trim();
+    const email = xss(req.body.email).trim();
+    const password = xss(req.body.password).trim();
     const pattern = /^[A-Za-z0-9_]+$/;
 
     if (!pattern.test(name)) throw Error("Invalid Username Characters");
-
     if (!email || !password || !password.length || !email.length)
       throw Error("Invalid params");
+    if (password.length < 6)
+      throw Error("Password must be more than 5 characters");
+    const passwordHash = await hash(req.body.password);
 
     const duplicateUser = await UserService.findByNameOrEmail(
       { name, email },
@@ -70,14 +72,18 @@ export const registerUser = asyncHandler(
     }
 
     const token = generateRandomSequence();
-    const newUser = await UserService.create({ name, email }, token, password);
+    const newUser = await UserService.create(
+      { name, email },
+      token,
+      passwordHash
+    );
     await Preference.create({ id: newUser.id });
 
     // test:
-    console.log(`${token}L${newUser.id}`);
+    // console.log(`${token}L${newUser.id}`);
 
-    // const mail = await sendEmail(email, `${token}-${newUser.id}`, false);
-    // if (!mail.success) throw Error("Failed to send mail");
+    const mail = await sendEmail(email, `${token}L${newUser.id}`, false);
+    if (!mail.success) throw Error("Failed to send mail");
 
     res.status(201).json({ email: newUser.email });
   }
@@ -102,13 +108,9 @@ export const sendMail = asyncHandler(async (req: Request, res: Response) => {
   const token = `${type ? "f.pophfs45v" : ""}${generateRandomSequence()}`;
 
   // test:
-  console.log(`${token}L${user.id}`);
+  // console.log(`${token}L${user.id}`);
 
-  // await sendEmail(
-  //   email,
-  //   `${type ? "f.pophfs45v" : ""}${token}-${user.id}`,
-  //   false
-  // );
+  await sendEmail(email, `${token}L${user.id}`, false);
 
   if (type) {
     const password = await hash(req.body.password);
@@ -127,7 +129,7 @@ export const sendMail = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  res.status(200).json({ email: user.email });
+  res.json({ email: user.email });
 });
 
 export const emailVerification = asyncHandler(

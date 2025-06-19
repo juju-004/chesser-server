@@ -22,6 +22,7 @@
     "mongoose": "^8.5.1",
     "nanoid": "^5.0.7",
     "notifycx": "^0.2.6",
+    "resend": "^4.6.0",
     "socket.io": "^4.7.5",
     "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.37.0",
     "xss": "^1.0.15"
