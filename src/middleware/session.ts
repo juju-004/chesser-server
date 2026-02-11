@@ -7,6 +7,8 @@ import { nanoid } from "nanoid";
 // MongoDB connection URI
 const mongoURI = process.env.MONGO_URL;
 
+console.log("env: ", process.env.NODE_ENV);
+
 declare module "express-session" {
   interface SessionData {
     user: User;
@@ -33,9 +35,11 @@ const sessionMiddleware = session({
   proxy: true,
   cookie: {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
-    secure: process.env.NODE_ENV === "production" ? true : false,
+    secure:
+      process.env.RAILWAY_ENVIRONMENT_NAME === "production" ? true : false,
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    sameSite:
+      process.env.RAILWAY_ENVIRONMENT_NAME === "production" ? "none" : "lax",
   },
   genid: function () {
     return nanoid(21);
