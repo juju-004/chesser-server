@@ -9,6 +9,7 @@ export const create = async (user: User, token: string, password: string) => {
       email: user.email,
       token,
       password,
+      verified: user?.verified ?? false,
     });
     await newUser.save();
     return {
@@ -55,7 +56,7 @@ export const updateUserFriend = async (id: string, friendId: string) => {
         friends: friendId,
       },
     },
-    { new: true }
+    { new: true },
   );
 
   if (!user) throw Error("No user found");
@@ -66,7 +67,7 @@ export const removeUserFriend = async (id: string, friendId: string) => {
   const user = await UserModel.findByIdAndUpdate(
     id,
     { $pull: { friends: friendId } },
-    { new: true }
+    { new: true },
   );
 
   if (!user) throw Error("No user found");
@@ -77,7 +78,7 @@ export const findByNameOrEmail = async (
   user: Partial<User>,
   includePassword = false,
   populate = false,
-  noerr = false
+  noerr = false,
 ) => {
   const u = await UserModel.findOne({
     $or: [{ name: user.name }, { email: user.email }],
@@ -108,7 +109,7 @@ export const findByNameOrEmail = async (
 
 export const update = async (
   id: string,
-  updatedUser: Partial<User> & { password?: string }
+  updatedUser: Partial<User> & { password?: string },
 ) => {
   if (!id) return null;
 
@@ -120,7 +121,7 @@ export const update = async (
         email: updatedUser.email,
       },
     },
-    { new: true, projection: { password: 0 } } // Return the updated document, exclude password
+    { new: true, projection: { password: 0 } }, // Return the updated document, exclude password
   );
 
   if (!updated) throw Error("Unable to update user");
@@ -139,7 +140,7 @@ export const isFriend = async (id: string, friendId: string) => {
   if (!user) throw Error("User not found");
 
   const isFriend = user.friends.some((f: mongoose.Types.ObjectId) =>
-    f.equals(friendId)
+    f.equals(friendId),
   );
 
   return isFriend;
