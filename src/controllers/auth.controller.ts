@@ -26,7 +26,7 @@ export const doesNameExist = asyncHandler(
 
     if (userExists) res.status(200).json({ isAvail: false });
     else res.status(200).json({ isAvail: true });
-  }
+  },
 );
 
 export const logoutSession = asyncHandler(
@@ -39,7 +39,7 @@ export const logoutSession = asyncHandler(
 
     res.json(user);
   },
-  true
+  true,
 );
 
 export const registerUser = asyncHandler(
@@ -60,7 +60,7 @@ export const registerUser = asyncHandler(
       { name, email },
       false,
       false,
-      true
+      true,
     );
 
     if (duplicateUser && !duplicateUser.verified) {
@@ -73,27 +73,40 @@ export const registerUser = asyncHandler(
 
     const token = generateRandomSequence();
     const newUser = await UserService.create(
-      { name, email },
+      { name, email, verified: true },
       token,
-      passwordHash
+      passwordHash,
     );
     await Preference.create({ id: newUser.id });
 
     // test:
     // console.log(`${token}L${newUser.id}`);
 
-    const mail = await sendEmail(email, `${token}L${newUser.id}`, false);
-    if (!mail.success) throw Error("Failed to send mail");
+    // await sendEmail(email, `${token}L${newUser.id}`, false);
+    // if (error) throw Error("Failed to send mail");
 
-    res.status(201).json({ email: newUser.email });
-  }
+    req.session.user = {
+      id: newUser.id.toString(),
+      name: newUser.name,
+      email: newUser.email,
+    };
+
+    console.log(newUser);
+    req.session.save(() => {
+      res.json(req.session.user);
+    });
+  },
 );
 
 export const sendMail = asyncHandler(async (req: Request, res: Response) => {
+  console.log("Entered");
+
   const email = req.body.email;
   const type = req.body.password ? true : false;
 
   const user = await UserService.findByNameOrEmail({ email });
+
+  console.log(email, type);
 
   if (type) {
     if (!user.verified) throw Error("Invalid Email");
@@ -110,7 +123,11 @@ export const sendMail = asyncHandler(async (req: Request, res: Response) => {
   // test:
   // console.log(`${token}L${user.id}`);
 
-  await sendEmail(email, `${token}L${user.id}`, false);
+  console.log(token);
+
+  const resp = await sendEmail(email, `${token}L${user.id}`, false);
+
+  throw Error("Could'nt send mail");
 
   if (type) {
     const password = await hash(req.body.password);
@@ -167,7 +184,7 @@ export const emailVerification = asyncHandler(
       });
       res.status(200).json({ message: "Email verified successfully" });
     }
-  }
+  },
 );
 
 export const loginUser = asyncHandler(async (req: Request, res: Response) => {
@@ -176,7 +193,7 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
 
   const user = await UserService.findByNameOrEmail(
     { name: nameOrEmail, email: nameOrEmail },
-    true
+    true,
   );
 
   const validPassword = await verify(user.password as string, password);
